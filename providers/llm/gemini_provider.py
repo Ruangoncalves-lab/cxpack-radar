@@ -3,7 +3,8 @@ Implementação oficial do GeminiProvider utilizando o SDK google-genai.
 Centralizado em DEFAULT_GEMINI_MODEL.
 """
 
-from typing import Optional, Any, List, Tuple
+import json
+from typing import Optional, Any, List, Tuple, Dict
 from core.config import DEFAULT_GEMINI_MODEL
 from core.secrets import get_gemini_api_key, is_gemini_configured
 from core.exceptions import GeminiAPIError
@@ -14,6 +15,10 @@ class GeminiProvider(LLMProvider):
     def __init__(self, model_name: str = DEFAULT_GEMINI_MODEL, api_key: Optional[str] = None):
         self.model_name = model_name
         self.api_key = api_key or get_gemini_api_key()
+
+    def is_available(self) -> bool:
+        """Verifica se a chave da API do Gemini está configurada."""
+        return is_gemini_configured()
 
     def _get_client(self):
         """Inicializa e retorna o cliente oficial do SDK google-genai."""
@@ -83,6 +88,23 @@ class GeminiProvider(LLMProvider):
             return response.text
         except Exception as e:
             raise GeminiAPIError(f"Erro na geração estruturada do Gemini: {str(e)}")
+
+    def analyze_company(self, company_name: str, domain: str, crawled_text: str) -> Dict[str, Any]:
+        """Analisa os textos coletados sobre uma empresa e extrai dados estruturados."""
+        if not self.is_available():
+            return {"extractions": {}}
+
+        prompt = f"Empresa: {company_name} ({domain})\nTextos:\n{crawled_text[:3000]}"
+        try:
+            res_text = self.generate_text(prompt, system_instruction="Extraia dados em formato JSON com o objeto 'extractions'.")
+            if "{" in res_text and "}" in res_text:
+                start = res_text.find("{")
+                end = res_text.rfind("}") + 1
+                parsed = json.loads(res_text[start:end])
+                return parsed if isinstance(parsed, dict) else {"extractions": {}}
+            return {"extractions": {}}
+        except Exception:
+            return {"extractions": {}}
 
     def test_connection(self) -> Tuple[bool, str, Optional[str]]:
         """
