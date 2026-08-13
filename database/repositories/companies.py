@@ -73,6 +73,15 @@ class CompanyRepository:
         self.session.commit()
         return company, is_created
 
+    def delete_company(self, company_id: int) -> bool:
+        """Exclui permanentemente uma empresa e todos os seus relacionamentos do banco de dados."""
+        company = self.session.get(Company, company_id)
+        if company:
+            self.session.delete(company)
+            self.session.commit()
+            return True
+        return False
+
     def add_evidence(
         self,
         company_id: int,

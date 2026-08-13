@@ -1,5 +1,5 @@
 """
-Tela do Mini CRM Industrial (pages/5_crm.py).
+Tela do Mini CRM Industrial com opção de Edição, Atribuição e Exclusão de Empresas (pages/5_crm.py).
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ st.set_page_config(page_title="CRM - CXPack Radar", page_icon="💼", layout="wi
 apply_app_shell(current_page="crm")
 
 st.markdown('<div class="cx-hero-title">Mini CRM Industrial</div>', unsafe_allow_html=True)
-st.markdown('<div class="cx-hero-subtitle">Pipeline comercial de prospecção, gestão de responsáveis e exportação de dados em Excel/CSV.</div>', unsafe_allow_html=True)
+st.markdown('<div class="cx-hero-subtitle">Pipeline comercial de prospecção, gestão de responsáveis, exclusão e exportação de dados em Excel/CSV.</div>', unsafe_allow_html=True)
 
 session = next(get_db_session())
 company_repo = CompanyRepository(session)
@@ -83,11 +83,11 @@ else:
             with col_l2:
                 with st.form(key=f"crm_form_{comp.id}"):
                     new_st = st.selectbox("Mudar Estágio:", VALID_CRM_STATUSES, index=VALID_CRM_STATUSES.index(comp.crm_status) if comp.crm_status in VALID_CRM_STATUSES else 0)
-                    
+
                     current_assigned = comp.assigned_to or "Não atribuído"
                     if current_assigned not in team_options:
                         team_options.append(current_assigned)
-                    
+
                     new_assigned = st.selectbox("Responsável:", team_options, index=team_options.index(current_assigned))
                     new_notes = st.text_area("Notas Comerciais:", value=comp.notes or "", height=80)
 
@@ -99,3 +99,11 @@ else:
                         crm_service.update_lead_notes(comp.id, new_notes)
                         st.success(f"Lead {comp.name} atualizado com sucesso!")
                         st.rerun()
+
+                st.write("")
+                if st.button("🗑️ EXCLUIR EMPRESA DO FUNIL", key=f"del_crm_{comp.id}", use_container_width=True):
+                    if company_repo.delete_company(comp.id):
+                        st.success(f"Empresa '{comp.name}' removida com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao excluir empresa.")

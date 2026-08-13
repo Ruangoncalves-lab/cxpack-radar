@@ -1,5 +1,5 @@
 """
-Tela de Resultados da Pesquisa, Score, Enriquecimento CNPJ/QSA e Decisores (pages/2_results.py).
+Tela de Resultados da Pesquisa, Score, Enriquecimento CNPJ/QSA, Decisores e Gestão de Empresas (pages/2_results.py).
 """
 
 import streamlit as st
@@ -75,7 +75,7 @@ else:
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     st.divider()
-    st.markdown("### 🔍 Inspecionar Empresa, CNPJ, QSA & Setor de Compras")
+    st.markdown("### 🔍 Inspecionar e Gerenciar Empresa")
 
     selected_domain = st.selectbox("Selecione uma empresa para inspecionar:", [c.domain for c in companies])
     if selected_domain:
@@ -110,6 +110,14 @@ else:
                             st.rerun()
                         else:
                             st.error(res["message"])
+
+                st.write("")
+                if st.button("🗑️ EXCLUIR EMPRESA DO BANCO", use_container_width=True):
+                    if company_repo.delete_company(comp.id):
+                        st.success(f"Empresa '{comp.name}' excluída com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao excluir empresa.")
 
             st.divider()
 

@@ -1,20 +1,17 @@
 """
 Gerador local de queries de busca industrial (QueryGenerator).
-Gera variações inteligentes sem gastar cota da API Gemini.
+Gera variações naturais e de alto rendimento para buscas web públicas (DDGS).
 """
 
 from typing import List, Optional, Dict
 from utils.normalization import normalize_text
 
-# Dicionário em memória de sinônimos industriais e expansões
 DEFAULT_SYNONYMS: Dict[str, List[str]] = {
-    "frasco": ["frasco", "garrafa", "recipiente", "embalagem rígida"],
-    "bisnaga": ["bisnaga", "tubo plástico", "tubo flexível", "squeeze tube"],
-    "fabricante": ["fabricante", "indústria", "fábrica", "produção de"],
-    "pet": ["PET", "polietileno tereftalato"],
-    "pead": ["PEAD", "HDPE", "polietileno de alta densidade"],
-    "pebd": ["PEBD", "LDPE", "polietileno de baixa densidade"],
-    "pp": ["PP", "polipropileno"],
+    "frasco": ["frascos", "garrafas", "embalagens rígidas", "recipientes"],
+    "bisnaga": ["bisnagas", "tubos plásticos", "tubos flexíveis"],
+    "pote": ["potes", "frascos boca larga", "embalagens"],
+    "tampa": ["tampas plásticas", "tampas rosca"],
+    "caixa": ["caixas plásticas", "estojos plásticos"],
 }
 
 
@@ -32,49 +29,31 @@ class QueryGenerator:
         max_queries: int = 3
     ) -> List[str]:
         """
-        Gera uma lista de 1 a N variações de busca usando templates industriais.
+        Gera uma lista de variações de busca usando termos naturais e diretos.
         """
-        clean_prod = normalize_text(product)
-        clean_cap = normalize_text(capacity)
-        clean_mat = normalize_text(material)
-        clean_loc = normalize_text(location or "Brasil").title()
-        clean_type = normalize_text(company_type or "Fabricante").title()
+        clean_prod = normalize_text(product or "embalagem")
+        clean_cap = capacity.strip() if capacity else ""
+        clean_mat = material.strip() if material else ""
+        clean_loc = location.strip() if location else "Brasil"
 
         queries: List[str] = []
 
-        # Query 1: Direta e completa
-        parts_1 = [clean_type, clean_prod]
-        if clean_mat:
-            parts_1.append(clean_mat.upper() if len(clean_mat) <= 4 else clean_mat)
-        if clean_cap:
-            parts_1.append(clean_cap)
-        if clean_loc:
-            parts_1.append(clean_loc)
-        queries.append(" ".join(parts_1))
+        # Query 1: Fabricantes diretos do produto e localização (Preservando PET, 500 ml)
+        q1 = f"fabricante de {clean_prod} {clean_mat} {clean_cap} {clean_loc}".strip()
+        queries.append(" ".join(q1.split()))
 
-        # Query 2: Variação com "indústria de embalagem" ou "fábrica de"
-        alt_type = "indústria" if clean_type.lower() == "fabricante" else "fornecedor"
-        parts_2 = [alt_type, clean_prod]
-        if clean_cap:
-            parts_2.append(clean_cap)
-        if clean_mat:
-            parts_2.append(clean_mat)
-        if clean_loc:
-            parts_2.append(clean_loc)
-        q2 = " ".join(parts_2)
-        if q2 not in queries:
-            queries.append(q2)
+        # Query 2: Indústria / fábrica com capacidade ou material
+        q2 = f"fábrica de {clean_prod} {clean_cap} {clean_mat}".strip()
+        q2_clean = " ".join(q2.split())
+        if q2_clean not in queries:
+            queries.append(q2_clean)
 
-        # Query 3: Variação com sinônimo do produto ou termo fabril
-        syns = self.synonyms.get(clean_prod, [clean_prod])
-        alt_prod = syns[1] if len(syns) > 1 else clean_prod
-        parts_3 = ["fábrica", alt_prod]
-        if clean_mat:
-            parts_3.append(clean_mat)
-        if clean_loc:
-            parts_3.append(clean_loc)
-        q3 = " ".join(parts_3)
-        if q3 not in queries:
-            queries.append(q3)
+        # Query 3: Fornecedores / catálogo de embalagens industriais
+        syns = self.synonyms.get(clean_prod.lower(), [clean_prod])
+        alt_prod = syns[0] if syns else clean_prod
+        q3 = f"fornecedores de {alt_prod} {clean_loc}".strip()
+        q3_clean = " ".join(q3.split())
+        if q3_clean not in queries:
+            queries.append(q3_clean)
 
         return queries[:max_queries]
