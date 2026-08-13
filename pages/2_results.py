@@ -57,17 +57,26 @@ else:
         partners = partner_repo.get_company_partners(c.id)
         dept_contacts = dept_repo.get_company_department_contacts(c.id)
 
+        # Extrair e-mail e telefone principais dos contatos
+        email_list = [ct.value for ct in contacts if "EMAIL" in ct.contact_type]
+        phone_list = [ct.value for ct in contacts if ct.contact_type in ("TELEFONE", "WHATSAPP")]
+        dept_emails = [dc.email for dc in dept_contacts if dc.email]
+
+        main_email = email_list[0] if email_list else (dept_emails[0] if dept_emails else "Não identificado")
+        main_phone = phone_list[0] if phone_list else "Não informado"
+
         data.append({
             "ID": c.id,
             "Score": c.score,
             "Empresa": c.name,
             "Domínio": c.domain,
             "CNPJ": c.cnpj or "Não vinculado",
+            "E-mail Público": main_email,
+            "Telefone / Whats": main_phone,
             "Tipo": c.company_type,
             "Cidade/UF": f"{c.city or ''}/{c.state or ''}".strip("/"),
             "Decisores": len(dms),
             "QSA Sócios": len(partners),
-            "Setor Compras": "Sim" if dept_contacts else "Não",
             "Última Atualização": c.updated_at.strftime("%d/%m/%Y %H:%M")
         })
 
