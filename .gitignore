@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node / Next.js (se houver no diretório)
+node_modules/
+.next/
+out/
+
+# Caching & Local DB
+data/
+*.db
+*.sqlite
+.streamlit/secrets.toml
+.env
+.env.local
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE / Gemini / Operating System
+.gemini/
+.planning/
+scratch/
+.DS_Store
+Thumbs.db
