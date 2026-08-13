@@ -156,8 +156,8 @@ class DecisionMakerService:
             progress_callback("Pesquisando Compras/Suprimentos via DDGS (Custo R$ 0)...")
 
         consolidated_query = f"{company.name} compras suprimentos procurement sourcing diretor"
-        ddgs_results = self.ddgs_provider.search_web(consolidated_query, max_results=6)
-        
+        ddgs_results = self.ddgs_provider.search_candidates(query=consolidated_query, max_results=6)
+
         self.usage_repo.log_usage(
             operation="ddgs_decision_maker_search",
             user_or_operator=operator,
@@ -166,10 +166,10 @@ class DecisionMakerService:
             success=True
         )
 
-        for res in ddgs_results:
-            title = res.get("title", "")
-            body = res.get("snippet", "")
-            url = res.get("url", "")
+        for cand in ddgs_results:
+            title = cand.source_title or cand.company_name
+            body = cand.reason or ""
+            url = cand.source_url or cand.website
             collected_texts.append(f"Título: {title} | Texto: {body} | URL: {url}")
 
         combined_context = "\n".join(collected_texts)
@@ -202,7 +202,7 @@ class DecisionMakerService:
                     domain=company.domain,
                     crawled_text=prompt
                 )
-                
+
                 # Extrair pessoas identificadas do campo extractions
                 extractions = res_gemini.get("extractions", {})
                 for k, v in extractions.items():
@@ -212,7 +212,7 @@ class DecisionMakerService:
                             "role": "Gerente de Compras / Diretoria",
                             "department": "Compras",
                             "email": None,
-                            "source_url": ddgs_results[0].get("url") if ddgs_results else None
+                            "source_url": ddgs_results[0].source_url if ddgs_results else None
                         })
             except Exception:
                 pass
