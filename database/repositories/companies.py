@@ -97,10 +97,12 @@ class CompanyRepository:
         self.session.commit()
         return evidence
 
-    def list_companies(self, min_score: int = 0, company_type: Optional[str] = None) -> List[Company]:
-        """Lista empresas cadastradas com filtros simples."""
+    def list_companies(self, min_score: int = 0, company_type: Optional[str] = None, limit: Optional[int] = None) -> List[Company]:
+        """Lista empresas cadastradas com filtros simples e limite opcional."""
         stmt = select(Company).where(Company.score >= min_score)
         if company_type and company_type != "TODOS":
             stmt = stmt.where(Company.company_type == company_type)
         stmt = stmt.order_by(Company.score.desc(), Company.updated_at.desc())
+        if limit:
+            stmt = stmt.limit(limit)
         return list(self.session.scalars(stmt).all())
