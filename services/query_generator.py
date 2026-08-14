@@ -3,6 +3,7 @@ Gerador local de queries de busca industrial (QueryGenerator).
 Gera variações naturais e de alto rendimento para buscas web públicas (DDGS).
 """
 
+from difflib import get_close_matches
 from typing import List, Optional, Dict
 from utils.normalization import normalize_text
 
@@ -32,6 +33,12 @@ class QueryGenerator:
         Gera uma lista de variações de busca usando termos naturais e diretos.
         """
         clean_prod = normalize_text(product or "embalagem")
+        clean_tokens = clean_prod.split()
+        if clean_tokens:
+            closest = get_close_matches(clean_tokens[0].rstrip("s"), self.synonyms, n=1, cutoff=0.72)
+            if closest:
+                clean_tokens[0] = closest[0]
+                clean_prod = " ".join(clean_tokens)
         clean_cap = capacity.strip() if capacity else ""
         clean_mat = material.strip() if material else ""
         clean_loc = location.strip() if location else "Brasil"
@@ -43,7 +50,7 @@ class QueryGenerator:
         queries.append(" ".join(q1.split()))
 
         # Query 2: Indústria / fábrica com capacidade ou material
-        q2 = f"fábrica de {clean_prod} {clean_cap} {clean_mat}".strip()
+        q2 = f"fábrica de {clean_prod} {clean_cap} {clean_mat} {clean_loc}".strip()
         q2_clean = " ".join(q2.split())
         if q2_clean not in queries:
             queries.append(q2_clean)
@@ -51,7 +58,7 @@ class QueryGenerator:
         # Query 3: Fornecedores / catálogo de embalagens industriais
         syns = self.synonyms.get(clean_prod.lower(), [clean_prod])
         alt_prod = syns[0] if syns else clean_prod
-        q3 = f"fornecedores de {alt_prod} {clean_loc}".strip()
+        q3 = f"fabricantes fornecedores de {alt_prod} {clean_mat} {clean_cap} {clean_loc}".strip()
         q3_clean = " ".join(q3.split())
         if q3_clean not in queries:
             queries.append(q3_clean)

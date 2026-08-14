@@ -33,21 +33,21 @@ def render_sidebar():
         st.markdown(header_html, unsafe_allow_html=True)
 
         # Categoria 1: Prospecção
-        st.markdown('<div class="cx-sidebar-category">📌 Prospecção B2B</div>', unsafe_allow_html=True)
-        if st.button("🏠 Visão Geral", use_container_width=True):
+        st.markdown('<div class="cx-sidebar-category">Prospecção</div>', unsafe_allow_html=True)
+        if st.button("⌂  Visão geral", use_container_width=True):
             st.switch_page("streamlit_app.py")
-        if st.button("🔍 Nova Pesquisa Web", use_container_width=True):
+        if st.button("＋  Nova prospecção", use_container_width=True):
             st.switch_page("pages/1_new_search.py")
-        if st.button("🏢 Banco & QSA", use_container_width=True):
+        if st.button("◎  Empresas e evidências", use_container_width=True):
             st.switch_page("pages/2_results.py")
-        if st.button("👤 Tomadores de Decisão", use_container_width=True):
+        if st.button("◇  Decisores", use_container_width=True):
             st.switch_page("pages/4_decision_makers.py")
 
         # Categoria 2: Gestão Comercial
-        st.markdown('<div class="cx-sidebar-category">💼 Gestão Comercial</div>', unsafe_allow_html=True)
-        if st.button("💼 Mini CRM Industrial", use_container_width=True):
+        st.markdown('<div class="cx-sidebar-category">Operação comercial</div>', unsafe_allow_html=True)
+        if st.button("▦  Pipeline CRM", use_container_width=True):
             st.switch_page("pages/5_crm.py")
-        if st.button("📈 Analytics Executivo", use_container_width=True):
+        if st.button("↗  Indicadores", use_container_width=True):
             st.switch_page("pages/6_dashboard.py")
         if st.button("📊 Uso da API & Cotas", use_container_width=True):
             st.switch_page("pages/3_api_usage.py")

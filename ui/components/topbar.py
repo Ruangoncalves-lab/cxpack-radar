@@ -13,12 +13,12 @@ def render_topbar(current_page: str = "home"):
     user_name = user.get("name", "Michael")
 
     pages = [
-        ("home", "Dashboard", "/"),
+        ("home", "Visão geral", "/"),
         ("search", "Nova Pesquisa", "/new_search"),
-        ("results", "Empresas & QSA", "/results"),
+        ("results", "Empresas", "/results"),
         ("decision_makers", "Decisores", "/decision_makers"),
         ("crm", "Mini CRM", "/crm"),
-        ("dashboard", "Analytics", "/dashboard"),
+        ("dashboard", "Indicadores", "/dashboard"),
         ("settings", "Configurações", "/settings")
     ]
 

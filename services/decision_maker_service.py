@@ -113,14 +113,7 @@ class DecisionMakerService:
         if not company:
             return {"success": False, "message": "Empresa não encontrada."}
 
-        # 1. Trava de Elegibilidade por Score Mínimo (DECISION_MAKER_MIN_SCORE = 70)
-        if company.score < DECISION_MAKER_MIN_SCORE:
-            return {
-                "success": False,
-                "message": f"Empresa com Score {company.score}/100. A busca exige nota mínima de {DECISION_MAKER_MIN_SCORE}/100."
-            }
-
-        # 2. Trava de Cache (30 dias)
+        # 1. Trava de Cache (30 dias). Toda empresa qualificada pode ser enriquecida.
         if not force_refresh and company.last_decision_maker_search_at:
             delta = datetime.now() - company.last_decision_maker_search_at
             if delta < timedelta(days=CACHE_EXPIRATION_DAYS):
@@ -138,18 +131,8 @@ class DecisionMakerService:
             progress_callback("Analisando site oficial...")
 
         collected_texts = []
-        department_contacts_found = []
-
-        # FASE 1: Procurar no site oficial da empresa (e-mails departamentais e páginas de contato)
+        # FASE 1: preparar o domínio oficial; contatos só são aceitos quando publicados.
         clean_dom = normalize_domain(company.domain)
-        if clean_dom:
-            for dept_prefix in DEPARTMENT_EMAILS_PREDICTS:
-                dept_email = f"{dept_prefix}{clean_dom}"
-                department_contacts_found.append({
-                    "department": "Compras / Suprimentos",
-                    "email": dept_email,
-                    "status": "DEPARTAMENTO"
-                })
 
         # FASE 2: Busca Web Consolidada via DDGS (Custo R$ 0) se necessário
         if progress_callback:
@@ -236,6 +219,7 @@ class DecisionMakerService:
                 role=p_role[:100],
                 email=p.get("email") or inferred,
                 email_status="PUBLICADO" if p.get("email") else ("INFERIDO" if inferred else "NAO_ENCONTRADO"),
+                department=p.get("department"),
                 phone=p.get("phone"),
                 linkedin_url=p.get("linkedin_url"),
                 source_url=p.get("source_url"),
@@ -244,20 +228,6 @@ class DecisionMakerService:
             )
             if is_new:
                 saved_count += 1
-
-        # FASE 4: Salvar Contatos Departamentais (NÍVEL C)
-        for dept in department_contacts_found:
-            dept_email = dept["email"]
-            # Salvar no banco como contato de departamento se não existir
-            existing_dept = self.session.query(DepartmentContact).filter_by(company_id=company.id, email=dept_email).first()
-            if not existing_dept:
-                new_dept = DepartmentContact(
-                    company_id=company.id,
-                    department=dept["department"],
-                    email=dept_email,
-                    confidence=0.9
-                )
-                self.session.add(new_dept)
 
         # FASE 5: Fallback com QSA Societário se nenhum decisor operacional foi encontrado
         if saved_count == 0:

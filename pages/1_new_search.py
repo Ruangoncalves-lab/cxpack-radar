@@ -124,32 +124,30 @@ if submit_button:
                         force_refresh=True
                     )
 
-                    from database.repositories.companies import CompanyRepository
-                    comp_repo = CompanyRepository(session)
-                    recent_companies = comp_repo.list_companies(limit=12)
+                    from database.repositories.searches import SearchRepository
+                    matched_companies = SearchRepository(session).list_companies_for_search(res["search_id"])
 
                     contacts_saved_total = 0
-                    if search_contacts and recent_companies:
+                    if search_contacts and matched_companies:
                         st.write("4. Rastreando websites e extraindo contatos públicos (E-mails, Telefones, WhatsApp)...")
-                        for idx, comp in enumerate(recent_companies, 1):
-                            st.write(f"  • Rastreando site {idx}/{len(recent_companies)}: {comp.name}")
+                        for idx, comp in enumerate(matched_companies, 1):
+                            st.write(f"  • Rastreando site {idx}/{len(matched_companies)}: {comp.name}")
                             c_res = contact_service.crawl_and_extract_company_contacts(comp.id)
                             if c_res.get("success"):
                                 contacts_saved_total += c_res.get("new_contacts_saved", 0)
 
                     dm_saved = 0
-                    if search_decision_makers and recent_companies:
+                    if search_decision_makers and matched_companies:
                         st.write("5. Mapeando tomadores de decisão das empresas qualificadas...")
-                        for idx, comp in enumerate(recent_companies, 1):
-                            if comp.score >= 70:
-                                st.write(f"  • Buscando decisores {idx}/{len(recent_companies)}: {comp.name}")
-                                dm_res = dm_service.search_decision_makers(
-                                    comp.id,
-                                    operator="usuario",
-                                    progress_callback=lambda msg: st.write(f"    └─ {msg}")
-                                )
-                                if dm_res.get("success"):
-                                    dm_saved += dm_res.get("new_decision_makers_saved", 0)
+                        for idx, comp in enumerate(matched_companies, 1):
+                            st.write(f"  • Buscando decisores {idx}/{len(matched_companies)}: {comp.name}")
+                            dm_res = dm_service.search_decision_makers(
+                                comp.id,
+                                operator="usuario",
+                                progress_callback=lambda msg: st.write(f"    └─ {msg}")
+                            )
+                            if dm_res.get("success"):
+                                dm_saved += dm_res.get("new_decision_makers_saved", 0)
 
                     status.update(label="✅ Pesquisa concluída com sucesso!", state="complete", expanded=False)
 

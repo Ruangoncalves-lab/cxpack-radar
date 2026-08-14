@@ -3,6 +3,9 @@ Orquestrador do Pipeline de Prospecção (SearchService - Fase 1, 2 & 3).
 Integra QueryGenerator, DDGSSearchProvider (via abstração SearchProvider), QuotaService, CacheService, ScoringService e Repositórios.
 """
 
+import re
+import unicodedata
+from difflib import get_close_matches
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from core.config import MAX_WEB_QUERIES_PER_SEARCH
@@ -31,6 +34,47 @@ class SearchService:
         self.scoring_service = ScoringService()
         self.query_generator = QueryGenerator()
         self.search_provider = search_provider or DDGSSearchProvider()
+
+    @staticmethod
+    def _normalize(value: str) -> str:
+        value = unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode().lower()
+        return re.sub(r"[^a-z0-9]+", " ", value).strip()
+
+    def _candidate_matches_filters(self, candidate, product, capacity, material, location, company_type):
+        """Qualifica somente pelo título/snippet público; a query nunca conta como evidência."""
+        evidence = self._normalize(f"{candidate.source_title or ''} {candidate.reason or ''}")
+        domain = (candidate.domain or "").lower()
+        manufacturer = any(term in evidence for term in ("fabricante", "fabrica ", "industria", "producao propria"))
+        stopwords = {"de", "da", "do", "das", "dos", "para", "com", "em"}
+        product_terms = [term.rstrip("s") for term in self._normalize(product).split() if term not in stopwords and len(term) > 2]
+        aliases = {
+            "frasco": ("frasco", "garrafa", "recipiente", "embalagem"),
+            "garrafa": ("garrafa", "frasco"),
+            "pote": ("pote", "frasco boca larga"),
+            "bisnaga": ("bisnaga", "tubo flexivel"),
+        }
+        canonical_terms = [get_close_matches(term, aliases, n=1, cutoff=0.72)[0] if get_close_matches(term, aliases, n=1, cutoff=0.72) else term for term in product_terms]
+        product_match = all(any(alias in evidence for alias in aliases.get(term, (term,))) for term in canonical_terms)
+        material_terms = [term for term in self._normalize(material).split() if term not in stopwords]
+        material_aliases = {
+            "resina": ("resina", "plastico", "pet", "pead", "polietileno", "polipropileno", " pp "),
+            "plastico": ("plastico", "pet", "pead", "polietileno", "polipropileno", " pp "),
+        }
+        material_match = not material_terms or all(any(alias in f" {evidence} " for alias in material_aliases.get(term, (term,))) for term in material_terms)
+        capacity_clean = self._normalize(capacity).replace(" ", "").replace("litros", "l").replace("litro", "l")
+        evidence_compact = evidence.replace(" ", "").replace("litros", "l").replace("litro", "l")
+        capacity_match = not capacity_clean or capacity_clean in evidence_compact
+        location_clean = self._normalize(location)
+        requested_state = next((part.lower() for part in re.findall(r"\b[A-Za-z]{2}\b", location or "") if part.lower() != "de"), None)
+        if requested_state:
+            location_match = requested_state in evidence.split()
+        elif "brasil" in location_clean:
+            location_match = domain.endswith(".br") or "brasil" in evidence
+        else:
+            location_match = not location_clean or location_clean in evidence
+        type_match = (company_type or "").upper() != "FABRICANTE" or manufacturer
+        matches = product_match and material_match and capacity_match and location_match and type_match
+        return matches, {"manufacturer": manufacturer, "product": product_match, "material": material_match, "capacity": capacity_match, "location": location_match}
 
     def execute_prospecting_search(
         self,
@@ -140,18 +184,33 @@ class SearchService:
                 if clean_domain and not is_blacklisted(clean_domain):
                     if clean_domain not in unique_candidates_by_domain:
                         unique_candidates_by_domain[clean_domain] = cand
+                    else:
+                        old_matches = self._candidate_matches_filters(
+                            unique_candidates_by_domain[clean_domain], product, capacity, material, location, company_type
+                        )[0]
+                        new_matches = self._candidate_matches_filters(
+                            cand, product, capacity, material, location, company_type
+                        )[0]
+                        if new_matches and not old_matches:
+                            unique_candidates_by_domain[clean_domain] = cand
 
-            total_companies_found = len(unique_candidates_by_domain)
             new_companies_count = 0
 
+            qualified_candidates = []
             for domain, cand in unique_candidates_by_domain.items():
+                matches, match_info = self._candidate_matches_filters(cand, product, capacity, material, location, company_type)
+                if matches:
+                    qualified_candidates.append((domain, cand, match_info))
+
+            total_companies_found = len(qualified_candidates)
+            for domain, cand, match_info in qualified_candidates:
                 # Calcular score determinístico via ScoringService
                 score_info = self.scoring_service.calculate_score(
-                    company_type=company_type.upper() if company_type else "FABRICANTE",
-                    product_matched=True,
-                    material_matched=bool(material and material.strip()),
-                    capacity_matched=bool(capacity and capacity.strip()),
-                    location_matched=True,
+                    company_type="FABRICANTE" if match_info["manufacturer"] else "DESCONHECIDO",
+                    product_matched=match_info["product"],
+                    material_matched=match_info["material"],
+                    capacity_matched=match_info["capacity"],
+                    location_matched=match_info["location"],
                     has_phone=False,
                     has_email=False,
                     has_decision_maker=False
@@ -161,7 +220,7 @@ class SearchService:
                     domain=domain,
                     name=cand.company_name,
                     website=cand.website,
-                    company_type=company_type.upper() if company_type else "FABRICANTE",
+                    company_type="FABRICANTE" if match_info["manufacturer"] else "DESCONHECIDO",
                     score=score_info["total_score"],
                     confidence=cand.confidence,
                     description=cand.reason
@@ -174,11 +233,11 @@ class SearchService:
                 if cand.source_url:
                     self.company_repo.add_evidence(
                         company_id=comp.id,
-                        field_name="ddgs_search_match",
-                        value=cand.company_name,
+                        field_name="qualified_search_match",
+                        value=f"{product} | {material or '-'} | {capacity or '-'} | {location}",
                         source_url=cand.source_url,
                         source_title=cand.source_title,
-                        source_text=f"Query: {cand.query} | Motivo: {cand.reason}",
+                        source_text=f"Evidência pública compatível: {cand.source_title or ''} | {cand.reason or ''}",
                         confidence=cand.confidence
                     )
 

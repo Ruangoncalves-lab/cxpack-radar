@@ -34,5 +34,6 @@ def generate_search_hash(
     norm_location = normalize_text(location or "brasil")
     norm_type = normalize_text(company_type or "fabricante")
 
-    raw_string = f"{norm_product}|{norm_capacity}|{norm_material}|{norm_location}|{norm_type}"
+    # v2 invalida caches gerados antes da qualificação estrita por evidência.
+    raw_string = f"v3|{norm_product}|{norm_capacity}|{norm_material}|{norm_location}|{norm_type}"
     return hashlib.sha256(raw_string.encode("utf-8")).hexdigest()

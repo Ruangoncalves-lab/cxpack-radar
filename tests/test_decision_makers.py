@@ -5,7 +5,8 @@ Testes unitários para a busca, inferência de e-mails e validação MX (Decisio
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from database.connection import Base
-from services.decision_maker_service import DecisionMakerService, DECISION_MAKER_MIN_SCORE
+from unittest.mock import MagicMock
+from services.decision_maker_service import DecisionMakerService
 
 
 def test_infer_email_pattern():
@@ -24,7 +25,7 @@ def test_check_mx_record():
     assert dm_service.check_mx_record("dominioinvalido123456789.xyz") is False
 
 
-def test_decision_maker_score_eligibility():
+def test_low_score_company_can_still_be_enriched():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
     SessionFactory = sessionmaker(bind=engine)
@@ -35,8 +36,13 @@ def test_decision_maker_score_eligibility():
     session.add(comp_low)
     session.commit()
 
-    dm_service = DecisionMakerService(session)
+    ddgs = MagicMock()
+    ddgs.search_candidates.return_value = []
+    gemini = MagicMock()
+    gemini.is_available.return_value = False
+    dm_service = DecisionMakerService(session, ddgs_provider=ddgs, gemini_provider=gemini)
+    dm_service.check_mx_record = lambda domain: False
     res = dm_service.search_decision_makers(comp_low.id)
 
-    assert res["success"] is False
-    assert f"exige nota mínima de {DECISION_MAKER_MIN_SCORE}" in res["message"]
+    assert res["success"] is True
+    ddgs.search_candidates.assert_called_once()

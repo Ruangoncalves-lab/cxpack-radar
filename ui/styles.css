@@ -19,6 +19,43 @@
   --radius-large: 28px;
 }
 
+/* Command center: the home page communicates the product outcome, not its plumbing. */
+.cx-command-hero { display:flex; align-items:center; justify-content:space-between; min-height:360px; padding:46px 52px; margin:4px 0 18px; background:#050505; color:#fff; border-radius:32px; overflow:hidden; position:relative; }
+.cx-command-hero:before { content:""; position:absolute; inset:auto -12% -55% 40%; width:620px; height:620px; border-radius:50%; background:radial-gradient(circle,rgba(215,254,3,.18),transparent 63%); }
+.cx-command-copy { max-width:690px; position:relative; z-index:2; }
+.cx-eyebrow { display:flex; align-items:center; gap:10px; color:#d7fe03; font-size:11px; font-weight:800; letter-spacing:1.5px; }
+.cx-eyebrow span { width:7px; height:7px; border-radius:50%; background:#d7fe03; box-shadow:0 0 0 5px rgba(215,254,3,.12); }
+.cx-command-copy h1 { margin:22px 0 16px; color:#fff; font-size:52px; line-height:1.02; letter-spacing:-2.5px; font-weight:700; }
+.cx-command-copy h1 em { color:#d7fe03; font-style:normal; }
+.cx-command-hero .cx-command-copy p { max-width:650px; margin:0; color:#b7b7bb !important; font-size:17px; line-height:1.55; font-weight:500 !important; }
+.cx-trust-line { display:flex; gap:22px; margin-top:28px; color:#e5e5e5; font-size:12px; font-weight:600; }
+.cx-radar-visual { width:250px; height:250px; flex:0 0 250px; position:relative; border:1px solid rgba(255,255,255,.1); border-radius:50%; margin-left:35px; background:repeating-radial-gradient(circle,transparent 0 39px,rgba(255,255,255,.07) 40px 41px); }
+.cx-radar-visual:before,.cx-radar-visual:after { content:""; position:absolute; background:rgba(255,255,255,.07); }
+.cx-radar-visual:before { width:1px; height:100%; left:50%; }.cx-radar-visual:after { height:1px; width:100%; top:50%; }
+.cx-radar-sweep { position:absolute; inset:0; border-radius:50%; background:conic-gradient(from 30deg,rgba(215,254,3,.3),transparent 22%,transparent); }
+.cx-radar-core { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); width:54px; height:54px; display:grid; place-items:center; border-radius:50%; background:#d7fe03; color:#000; font-weight:900; font-size:18px; z-index:2; }
+.cx-radar-dot { position:absolute; width:8px; height:8px; border-radius:50%; background:#d7fe03; box-shadow:0 0 12px #d7fe03; z-index:2; }.dot-1{top:20%;left:58%}.dot-2{top:59%;left:20%}.dot-3{top:71%;left:70%}
+.cx-radar-caption { position:absolute; bottom:-14px; left:50%; transform:translateX(-50%); width:190px; padding:10px 14px; border-radius:14px; background:#fff; color:#111; font-size:11px; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.25); z-index:3; }.cx-radar-caption strong{font-size:16px;margin-right:4px}
+.cx-section-kicker { margin:38px 0 12px; color:#8e8e93; font-size:10px; font-weight:800; letter-spacing:1.4px; }
+.cx-pipeline-card { min-height:120px; padding:20px 22px; background:#fff; border:1px solid #e8e8eb; border-radius:20px; }
+.cx-pipeline-label { color:#66666c; font-size:12px; font-weight:700; }.cx-pipeline-value { margin:8px 0 4px; color:#111; font-size:34px; line-height:1; font-weight:800; letter-spacing:-1.5px; }.cx-pipeline-note { color:#99999e; font-size:11px; }
+.cx-section-heading { margin:38px 0 14px; }.cx-section-heading span { color:#85858b; font-size:10px; font-weight:800; letter-spacing:1.4px; }.cx-section-heading h2 { margin:5px 0 0; font-size:24px; letter-spacing:-.6px; }
+.cx-opportunity-list { background:#fff; border:1px solid #e8e8eb; border-radius:24px; padding:5px 20px; }
+.cx-opportunity-row { display:flex; align-items:center; gap:13px; min-height:76px; border-bottom:1px solid #f0f0f2; }.cx-opportunity-row:last-child{border-bottom:0}
+.cx-company-mark { width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px;border-radius:12px;background:#f1f1f3;color:#111;font-weight:800; }
+.cx-company-main { min-width:0; flex:1; }.cx-company-main strong,.cx-company-main span { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }.cx-company-main strong{font-size:14px}.cx-company-main span{margin-top:3px;color:#85858b;font-size:11px}
+.cx-opportunity-status { padding:6px 10px;border-radius:20px;font-size:10px;font-weight:800; }.cx-opportunity-status.ready{background:#eff9e7;color:#397421}.cx-opportunity-status.enrich{background:#f3f3f4;color:#65656b}
+.cx-score { width:58px;text-align:right;font-size:19px;font-weight:800; }.cx-score small{color:#999;font-size:9px}
+.cx-empty-state { min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff;border:1px dashed #d8d8dc;border-radius:24px;padding:32px; }.cx-empty-state p{max-width:420px;color:#777!important;font-weight:500!important}.cx-empty-icon{font-size:32px;margin-bottom:8px}
+.cx-mission-card { margin-top:38px; min-height:366px; padding:26px; border-radius:24px; background:#d7fe03; color:#050505; }
+.cx-mission-top,.cx-mission-foot { display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:900;letter-spacing:1px}.cx-live-dot{padding:5px 8px;border-radius:12px;background:#050505;color:#d7fe03}
+.cx-mission-card h2 { margin:19px 0 22px;font-size:27px;line-height:1.05;letter-spacing:-1px}.cx-mission-step{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid rgba(0,0,0,.14)}.cx-mission-step b{font-size:10px;padding-top:3px}.cx-mission-step strong,.cx-mission-step span{display:block}.cx-mission-step strong{font-size:13px}.cx-mission-step span{font-size:11px;margin-top:2px;opacity:.65}.cx-mission-foot{margin-top:16px;padding-top:15px;border-top:1px solid rgba(0,0,0,.2)}
+.cx-welcome-note { margin:20px 0 0;color:#8b8b90;font-size:11px;text-align:right; }
+
+@media (max-width: 1350px) { .cx-topbar-nav{display:none}.cx-topbar-brand{white-space:nowrap} }
+@media (max-width: 1050px) { .cx-command-hero{padding:38px}.cx-command-copy h1{font-size:42px}.cx-radar-visual{display:none} }
+@media (max-width: 700px) { .cx-command-hero{min-height:auto;padding:30px 24px;border-radius:24px}.cx-command-copy h1{font-size:36px;letter-spacing:-1.5px}.cx-trust-line{flex-direction:column;gap:7px}.cx-opportunity-status{display:none} }
+
 /* Reset Global & Background */
 html, body, [data-testid="stAppViewContainer"] {
   background-color: var(--surface) !important;
@@ -31,6 +68,8 @@ html, body, [data-testid="stAppViewContainer"] {
   visibility: hidden;
   display: none !important;
 }
+
+[data-testid="stSidebarNav"] { display: none !important; }
 
 /* Container Principal com Margem do App Shell */
 [data-testid="stAppViewContainer"] > .main {
@@ -401,4 +440,10 @@ div[data-baseweb="input"] input {
 .stTextArea textarea:focus {
   border-color: #000000 !important;
   box-shadow: 0 0 0 2px rgba(215, 254, 3, 0.6) !important;
+}
+
+/* Breakpoints ficam por último para vencer as regras base do app shell. */
+@media (max-width: 1350px) {
+  .cx-topbar-nav { display: none !important; }
+  .cx-topbar-brand { white-space: nowrap; }
 }

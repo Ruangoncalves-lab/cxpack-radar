@@ -1,107 +1,134 @@
-"""
-CXPack Radar - Aplicação Principal Streamlit (Visão Geral & Dashboard no Estilo Lumin).
-Sistema B2B de prospecção de fornecedores e fabricantes industriais.
-"""
+"""CXPack Radar — visão geral da inteligência comercial industrial."""
+
+import html
 
 import streamlit as st
-from database.connection import init_db, test_db_connection, get_db_session
+
+from database.connection import get_db_session, init_db
 from database.repositories.companies import CompanyRepository
 from database.repositories.decision_makers import DecisionMakerRepository
-from database.repositories.usage import UsageRepository
 from services.quota_service import QuotaService
 from ui.layout import apply_app_shell
-from ui.components.bento_cards import render_dark_hero_card, render_lime_card, render_history_feed
 
-# 1. Configuração da página do Streamlit
+
 st.set_page_config(
-    page_title="CXPack Radar - Dashboard SaaS B2B",
-    page_icon="📡",
+    page_title="CXPack Radar | Inteligência comercial industrial",
+    page_icon="◉",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
-
-# 2. Aplicar App Shell Global (Topbar do Lumin + Sidebar Categorizada + Tema)
 apply_app_shell(current_page="home")
 
-# 3. Inicializar Banco de Dados
 try:
     init_db()
-except Exception as e:
-    st.error(f"Erro ao inicializar banco de dados: {e}")
+except Exception as exc:
+    st.error(f"Não foi possível iniciar o banco de dados: {exc}")
 
 session = next(get_db_session())
 company_repo = CompanyRepository(session)
 dm_repo = DecisionMakerRepository(session)
-usage_repo = UsageRepository(session)
 quota_service = QuotaService(session)
 
-user = st.session_state.get("user", {})
-user_name = user.get("name", "Michael").split()[0]
-
-# 4. Saudação Hero no Estilo Lumin (Hello, Michael)
-st.markdown(f'<div style="font-size: 34px; font-weight: 800; color: #111111; letter-spacing: -1px; margin-bottom: 20px;">Olá, {user_name}</div>', unsafe_allow_html=True)
-
-# 5. Carregar Dados Reais do Banco
 companies = company_repo.list_companies(min_score=0)
-total_companies = len(companies)
-manufacturers_count = sum(1 for c in companies if c.company_type == "FABRICANTE")
-quota_info = quota_service.get_quota_dashboard_data()
+decision_makers = dm_repo.list_all_decision_makers(limit=1000)
+quota = quota_service.get_quota_dashboard_data()
 
-# 6. Grid Principal Replicando o Layout da Imagem Lumin
-col_hero, col_center, col_right = st.columns([1.1, 1.2, 1.3])
+manufacturers = [company for company in companies if company.company_type == "FABRICANTE"]
+qualified = [company for company in companies if company.score >= 70]
+companies_with_contact = [company for company in companies if company.contacts or company.department_contacts]
+actionable_rate = round(len(companies_with_contact) / len(companies) * 100) if companies else 0
+user_name = st.session_state.get("user", {}).get("name", "Administrador").split()[0]
 
-# Coluna 1: Dark Hero Card (Estilo 'Total Balance' em Preto)
-with col_hero:
-    render_dark_hero_card(
-        total_companies=total_companies,
-        manufacturers_count=manufacturers_count,
-        quota_used=quota_info["today_total"],
-        safety_limit=quota_info["safety_limit"]
-    )
-    
-    st.markdown("<div style='margin-top: 16px;'></div>", unsafe_allow_html=True)
-    if st.button("🚀 NOVA PESQUISA WEB", use_container_width=True):
+st.markdown(
+    f"""
+    <section class="cx-command-hero">
+        <div class="cx-command-copy">
+            <div class="cx-eyebrow"><span></span> INTELIGÊNCIA COMERCIAL INDUSTRIAL</div>
+            <h1>Do produto que você precisa<br>ao <em>contato que decide.</em></h1>
+            <p>Encontre fabricantes, valide evidências e descubra o melhor caminho de abordagem — sem transformar pesquisa em planilha infinita.</p>
+            <div class="cx-trust-line">
+                <span>✓ Fontes rastreáveis</span><span>✓ Dados públicos</span><span>✓ Busca web sem custo</span>
+            </div>
+        </div>
+        <div class="cx-radar-visual" aria-label="Radar de prospecção">
+            <div class="cx-radar-ring ring-1"></div><div class="cx-radar-ring ring-2"></div>
+            <div class="cx-radar-sweep"></div><div class="cx-radar-core">CX</div>
+            <span class="cx-radar-dot dot-1"></span><span class="cx-radar-dot dot-2"></span><span class="cx-radar-dot dot-3"></span>
+            <div class="cx-radar-caption"><strong>{len(qualified)}</strong> oportunidades qualificadas</div>
+        </div>
+    </section>
+    """,
+    unsafe_allow_html=True,
+)
+
+cta_primary, cta_secondary, cta_space = st.columns([1.15, 1.05, 4])
+with cta_primary:
+    if st.button("Iniciar nova prospecção  →", type="primary", use_container_width=True):
         st.switch_page("pages/1_new_search.py")
-
-# Coluna 2: Módulos Centrais de Prospecção
-with col_center:
-    st.markdown("#### ⚡ Ações do Radar")
-    if st.button("🏢 ABRIR BANCO & QSA", use_container_width=True):
+with cta_secondary:
+    if st.button("Explorar empresas", use_container_width=True):
         st.switch_page("pages/2_results.py")
-    if st.button("💼 ABRIR MINI CRM INDUSTRIAL", use_container_width=True):
-        st.switch_page("pages/5_crm.py")
-    if st.button("📈 ANALYTICS EXECUTIVO", use_container_width=True):
-        st.switch_page("pages/6_dashboard.py")
 
-    st.divider()
+st.markdown('<div class="cx-section-kicker">VISÃO DO PIPELINE</div>', unsafe_allow_html=True)
+kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
+metrics = [
+    (kpi_1, "Base mapeada", len(companies), "empresas com domínio único"),
+    (kpi_2, "Fabricantes", len(manufacturers), "identificados na base"),
+    (kpi_3, "Leads acionáveis", f"{actionable_rate}%", "com contato publicado"),
+    (kpi_4, "Decisores", len(decision_makers), "pessoas e setores mapeados"),
+]
+for column, label, value, note in metrics:
+    with column:
+        st.markdown(
+            f'<div class="cx-pipeline-card"><div class="cx-pipeline-label">{label}</div>'
+            f'<div class="cx-pipeline-value">{value}</div><div class="cx-pipeline-note">{note}</div></div>',
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("#### 📊 Cobertura da Base")
-    st.markdown(f"• **Fabricantes Confirmados:** `{manufacturers_count}`")
-    st.markdown(f"• **Decisores Mapeados:** `{len(dm_repo.list_all_decision_makers(limit=500))}`")
-    st.markdown(f"• **Buscas Web Hoje (DDGS):** `{quota_info['today_total']}`")
+left, right = st.columns([1.65, 1])
+with left:
+    st.markdown(
+        '<div class="cx-section-heading"><div><span>PRÓXIMAS OPORTUNIDADES</span>'
+        '<h2>Empresas prontas para investigar</h2></div></div>',
+        unsafe_allow_html=True,
+    )
+    shortlist = companies[:5]
+    if shortlist:
+        rows = ""
+        for company in shortlist:
+            safe_name = html.escape(company.name or company.domain)
+            safe_place = html.escape(" · ".join(filter(None, [company.city, company.state])) or "Brasil")
+            status = "Pronto para contato" if company.contacts or company.department_contacts else "Enriquecer dados"
+            status_class = "ready" if company.contacts or company.department_contacts else "enrich"
+            rows += (
+                f'<div class="cx-opportunity-row"><div class="cx-company-mark">{safe_name[:1].upper()}</div>'
+                f'<div class="cx-company-main"><strong>{safe_name}</strong><span>{safe_place} · {company.company_type.title()}</span></div>'
+                f'<div class="cx-opportunity-status {status_class}">{status}</div><div class="cx-score">{company.score}<small>/100</small></div></div>'
+            )
+        st.markdown(f'<div class="cx-opportunity-list">{rows}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(
+            '<div class="cx-empty-state"><div class="cx-empty-icon">⌁</div><strong>Seu radar está pronto.</strong>'
+            '<p>Faça a primeira busca para criar uma lista de fabricantes com evidências, contatos e decisores.</p></div>',
+            unsafe_allow_html=True,
+        )
 
-# Coluna 3: Cards com Destaque Lime + Feed de Histórico
-with col_right:
-    # 3 Lime Cards no Topo (Estilo Cards PRO/Referral em Lime do Lumin)
-    col_l1, col_l2, col_l3 = st.columns(3)
-    with col_l1:
-        render_lime_card("DDGS", "Busca R$ 0", "R$ 0")
-    with col_l2:
-        render_lime_card("Gemini", "Ia 3.1", "IA")
-    with col_l3:
-        render_lime_card("QSA", "Dados CNPJ", "QSA")
+with right:
+    st.markdown(
+        f"""
+        <div class="cx-mission-card">
+            <div class="cx-mission-top"><span>MISSÃO DE HOJE</span><span class="cx-live-dot">ATIVO</span></div>
+            <h2>Transforme pesquisa<br>em conversa comercial.</h2>
+            <div class="cx-mission-step"><b>01</b><div><strong>Defina o briefing</strong><span>Produto, material, volume e região.</span></div></div>
+            <div class="cx-mission-step"><b>02</b><div><strong>Valide quem fabrica</strong><span>Score e evidências mantêm o dado honesto.</span></div></div>
+            <div class="cx-mission-step"><b>03</b><div><strong>Encontre a porta de entrada</strong><span>Compras, suprimentos, diretoria ou QSA.</span></div></div>
+            <div class="cx-mission-foot"><span>{quota['today_total']} buscas hoje</span><span>DDGS · R$ 0</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-
-    # Feed de Histórico de Empresas Prospectadas (Estilo History List do Lumin)
-    history_data = []
-    for c in companies[:5]:
-        history_data.append({
-            "name": c.name,
-            "domain": c.domain,
-            "score": c.score,
-            "company_type": c.company_type,
-            "time_str": c.updated_at.strftime("%H:%M")
-        })
-
-    render_history_feed(history_data)
+st.markdown(
+    f'<div class="cx-welcome-note">Olá, {html.escape(user_name)}. O radar prioriza dados publicados e sempre mantém a fonte junto da informação.</div>',
+    unsafe_allow_html=True,
+)

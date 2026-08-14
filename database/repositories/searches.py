@@ -114,3 +114,13 @@ class SearchRepository:
         """Lista as pesquisas mais recentes."""
         stmt = select(Search).order_by(Search.created_at.desc()).limit(limit)
         return list(self.session.scalars(stmt).all())
+
+    def list_companies_for_search(self, search_id: int) -> List[Company]:
+        """Retorna somente as empresas qualificadas vinculadas à pesquisa."""
+        stmt = (
+            select(Company)
+            .join(SearchResult, SearchResult.company_id == Company.id)
+            .where(SearchResult.search_id == search_id)
+            .order_by(Company.score.desc())
+        )
+        return list(self.session.scalars(stmt).unique().all())

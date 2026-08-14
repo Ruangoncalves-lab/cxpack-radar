@@ -79,7 +79,7 @@ class DDGSSearchProvider(SearchProvider):
                         company_name=company_name,
                         website=f"https://{domain}",
                         domain=domain,
-                        reason=f"Mencionado nos resultados DDGS: '{snippet[:120]}...'",
+                        reason=f"Mencionado nos resultados DDGS: '{snippet[:500]}...'",
                         source_title=title,
                         source_url=url,
                         query=query,
