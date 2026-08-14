@@ -28,3 +28,11 @@ def test_filter_tolerates_typo_and_industry_material_names():
 
     assert matches is True
     assert all(details.values())
+
+
+def test_registry_cnae_for_plastic_packaging():
+    service = SearchService.__new__(SearchService)
+
+    assert service._registry_cnae("frascos", "PEAD") == "2222600"
+    assert service._registry_cnae("garrafas", "PET") == "2222600"
+    assert service._registry_cnae("peças automotivas", "PEAD") is None

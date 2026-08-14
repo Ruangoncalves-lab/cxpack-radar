@@ -21,6 +21,7 @@ from services.scoring_service import ScoringService
 from database.repositories.searches import SearchRepository
 from database.repositories.companies import CompanyRepository
 from database.repositories.usage import UsageRepository
+from providers.cnpj.public_cnpj_provider import PublicCNPJProvider
 
 
 class SearchService:
@@ -34,6 +35,16 @@ class SearchService:
         self.scoring_service = ScoringService()
         self.query_generator = QueryGenerator()
         self.search_provider = search_provider or DDGSSearchProvider()
+        self.cnpj_provider = PublicCNPJProvider()
+
+    def _registry_cnae(self, product: str, material: str) -> Optional[str]:
+        text = self._normalize(f"{product} {material}")
+        packaging = any(term in text for term in ("frasco", "garrafa", "pote", "tampa", "bisnaga", "embalagem"))
+        if packaging and any(term in text for term in ("plastico", "resina", "pet", "pead", "polipropileno", "pp")):
+            return "2222600"
+        if packaging and "vidro" in text:
+            return "2312500"
+        return None
 
     @staticmethod
     def _normalize(value: str) -> str:
@@ -252,6 +263,54 @@ class SearchService:
                     reason=cand.reason
                 )
 
+            # 8. Ampliar via CNPJ/CNAE sem confundir candidato oficial com produto comprovado.
+            registry_count = 0
+            cnae = self._registry_cnae(product, material or "")
+            requested_state = next((part.upper() for part in re.findall(r"\b[A-Za-z]{2}\b", location or "") if part.lower() != "de"), None)
+            if cnae and (company_type or "").upper() == "FABRICANTE":
+                for official in self.cnpj_provider.search_companies_by_cnae(cnae, requested_state, limit=100):
+                    identity = f"cnpj-{official['cnpj']}.receita.local"
+                    comp, is_new = self.company_repo.upsert_company(
+                        domain=identity,
+                        name=official["trade_name"] or official["legal_name"],
+                        website=None,
+                        company_type="CANDIDATO_CNAE",
+                        city=official["city"],
+                        state=official["state"],
+                        score=55,
+                        confidence=0.95,
+                        description=f"Candidato oficial ativo no CNAE {cnae}: {official['cnae_text']}",
+                    )
+                    comp.cnpj = official["cnpj"]
+                    comp.legal_name = official["legal_name"]
+                    comp.trade_name = official["trade_name"]
+                    comp.cnae_code = official["cnae_code"]
+                    comp.cnae_text = official["cnae_text"]
+                    comp.status_cadastral = official["status_cadastral"]
+                    self.company_repo.add_evidence(
+                        company_id=comp.id,
+                        field_name="official_cnae_candidate",
+                        value=f"{official['cnpj']} | CNAE {cnae}",
+                        source_url="https://minhareceita.org/",
+                        source_title="Dados Abertos CNPJ / Receita Federal",
+                        source_text=f"Empresa ativa enquadrada no CNAE {cnae}: {official['cnae_text']}",
+                        confidence=0.95,
+                    )
+                    self.search_repo.add_result(
+                        search_id=search_record.id,
+                        domain=identity,
+                        company_id=comp.id,
+                        source_url="https://minhareceita.org/",
+                        source_title="Dados Abertos CNPJ / Receita Federal",
+                        confidence=0.95,
+                        reason=f"Candidato por CNAE {cnae}; produto e capacidade ainda precisam de validação no site.",
+                    )
+                    registry_count += 1
+                    if is_new:
+                        new_companies_count += 1
+
+            total_companies_found += registry_count
+
             # Atualizar estatísticas da pesquisa
             search_record.grounded_calls = successful_web_calls
             search_record.companies_found = total_companies_found
@@ -266,6 +325,7 @@ class SearchService:
                 "new_companies_found": new_companies_count,
                 "web_search_calls": successful_web_calls,
                 "grounded_calls": successful_web_calls,
+                "registry_candidates": registry_count,
                 "status": "COMPLETED"
             }
 

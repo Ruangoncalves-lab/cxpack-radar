@@ -16,4 +16,5 @@ def test_is_blacklisted():
     assert is_blacklisted("https://www.mercadolivre.com.br/item123") is True
     assert is_blacklisted("amazon.com.br") is True
     assert is_blacklisted("instagram.com") is True
+    assert is_blacklisted("https://produtos.solucoesindustriais.com.br/item") is True
     assert is_blacklisted("https://www.empresaembalagens.com.br") is False

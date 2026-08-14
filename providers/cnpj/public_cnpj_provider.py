@@ -111,3 +111,39 @@ class PublicCNPJProvider(CNPJDataProvider):
         """
         # Em produção/API pública sem endpoint de busca geral por nome, simula ou retorna a lista de candidatos
         return []
+
+    def search_companies_by_cnae(self, cnae: str, state: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        """Consulta gratuita da base Receita Federal espelhada pelo Minha Receita."""
+        params = {"cnae": re.sub(r"\D", "", cnae), "limit": min(max(limit, 1), 1000)}
+        if state:
+            params["uf"] = state.upper()
+        try:
+            with httpx.Client(timeout=max(self.timeout, 20.0), follow_redirects=True) as client:
+                response = client.get("https://minhareceita.org/", params=params, headers={"User-Agent": USER_AGENT})
+                response.raise_for_status()
+                rows = response.json().get("data", [])
+        except Exception:
+            return []
+
+        companies = []
+        for data in rows:
+            if data.get("situacao_cadastral") not in (2, "2") and data.get("descricao_situacao_cadastral") != "ATIVA":
+                continue
+            cnpj = str(data.get("cnpj") or "")
+            if len(cnpj) != 14:
+                continue
+            companies.append({
+                "cnpj": cnpj,
+                "legal_name": data.get("razao_social") or "",
+                "trade_name": data.get("nome_fantasia") or data.get("razao_social") or "",
+                "status_cadastral": data.get("descricao_situacao_cadastral") or "ATIVA",
+                "cnae_code": str(data.get("cnae_fiscal") or ""),
+                "cnae_text": data.get("cnae_fiscal_descricao") or "",
+                "city": data.get("municipio") or "",
+                "state": data.get("uf") or "",
+                "phone": data.get("ddd_telefone_1") or "",
+                "email": data.get("email") or "",
+                "qsa": data.get("qsa") or [],
+                "source": "Minha Receita / Dados Abertos Receita Federal",
+            })
+        return companies

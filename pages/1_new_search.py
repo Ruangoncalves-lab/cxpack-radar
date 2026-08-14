@@ -126,21 +126,25 @@ if submit_button:
 
                     from database.repositories.searches import SearchRepository
                     matched_companies = SearchRepository(session).list_companies_for_search(res["search_id"])
+                    confirmed_companies = [
+                        comp for comp in matched_companies
+                        if comp.company_type == "FABRICANTE" and comp.website
+                    ]
 
                     contacts_saved_total = 0
-                    if search_contacts and matched_companies:
+                    if search_contacts and confirmed_companies:
                         st.write("4. Rastreando websites e extraindo contatos públicos (E-mails, Telefones, WhatsApp)...")
-                        for idx, comp in enumerate(matched_companies, 1):
-                            st.write(f"  • Rastreando site {idx}/{len(matched_companies)}: {comp.name}")
+                        for idx, comp in enumerate(confirmed_companies, 1):
+                            st.write(f"  • Rastreando site {idx}/{len(confirmed_companies)}: {comp.name}")
                             c_res = contact_service.crawl_and_extract_company_contacts(comp.id)
                             if c_res.get("success"):
                                 contacts_saved_total += c_res.get("new_contacts_saved", 0)
 
                     dm_saved = 0
-                    if search_decision_makers and matched_companies:
+                    if search_decision_makers and confirmed_companies:
                         st.write("5. Mapeando tomadores de decisão das empresas qualificadas...")
-                        for idx, comp in enumerate(matched_companies, 1):
-                            st.write(f"  • Buscando decisores {idx}/{len(matched_companies)}: {comp.name}")
+                        for idx, comp in enumerate(confirmed_companies, 1):
+                            st.write(f"  • Buscando decisores {idx}/{len(confirmed_companies)}: {comp.name}")
                             dm_res = dm_service.search_decision_makers(
                                 comp.id,
                                 operator="usuario",
@@ -157,6 +161,12 @@ if submit_button:
                         f"🎉 Encontradas **{res['companies_found']} empresas** "
                         f"({res['new_companies_found']} novas salvas no banco){msg_cnt}{msg_dm}."
                     )
+                    if res.get("registry_candidates"):
+                        st.info(
+                            f"🏛️ **{res['registry_candidates']} candidatos oficiais por CNAE** foram encontrados "
+                            "na base pública do CNPJ. Eles ficam separados dos fabricantes comprovados até "
+                            "que produto, material e capacidade sejam validados em uma fonte comercial."
+                        )
 
                     st.session_state["active_search_id"] = res["search_id"]
                     if st.button("👉 IR PARA RESULTADOS DA PESQUISA", use_container_width=True):

@@ -41,7 +41,10 @@ col_f1, col_f2 = st.columns(2)
 with col_f1:
     min_score = st.slider("Score Mínimo", min_value=0, max_value=100, value=0)
 with col_f2:
-    company_type_filter = st.selectbox("Filtrar por Tipo", ["TODOS", "FABRICANTE", "DISTRIBUIDOR", "DESCONHECIDO"])
+    company_type_filter = st.selectbox(
+        "Filtrar por Tipo",
+        ["TODOS", "FABRICANTE", "CANDIDATO_CNAE", "DISTRIBUIDOR", "DESCONHECIDO"]
+    )
 
 companies = company_repo.list_companies(min_score=min_score, company_type=company_type_filter)
 
@@ -69,7 +72,7 @@ else:
             "ID": c.id,
             "Score": c.score,
             "Empresa": c.name,
-            "Domínio": c.domain,
+            "Domínio": c.domain if c.website else "Site não localizado",
             "CNPJ": c.cnpj or "Não vinculado",
             "E-mail Público": main_email,
             "Telefone / Whats": main_phone,
@@ -96,7 +99,10 @@ else:
                 st.markdown(f"## 🏢 {comp.name}")
                 if comp.legal_name:
                     st.markdown(f"**Razão Social:** `{comp.legal_name}`")
-                st.markdown(f"**Website Oficial:** [{comp.website}]({comp.website})")
+                if comp.website:
+                    st.markdown(f"**Website Oficial:** [{comp.website}]({comp.website})")
+                else:
+                    st.info("Website ainda não localizado. Este registro veio da base pública do CNPJ por CNAE.")
                 st.markdown(f"**CNPJ Público:** `{comp.cnpj or 'Não vinculado'}` | **Situação:** `{comp.status_cadastral or 'ATIVA'}`")
                 if comp.cnae_text:
                     st.markdown(f"**CNAE Principal:** `{comp.cnae_code}` - {comp.cnae_text}")

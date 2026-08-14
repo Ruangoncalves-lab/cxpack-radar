@@ -31,6 +31,7 @@ DEFAULT_BLACKLIST: Set[str] = {
     "whatsapp.com",
     "google.com",
     "google.com.br",
+    "solucoesindustriais.com.br",
 }
 
 

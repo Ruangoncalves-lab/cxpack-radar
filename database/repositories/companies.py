@@ -42,7 +42,7 @@ class CompanyRepository:
             company = Company(
                 domain=clean_domain,
                 name=name,
-                website=website or f"http://{clean_domain}",
+                website=website,
                 company_type=company_type,
                 city=city,
                 state=state,
