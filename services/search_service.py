@@ -12,6 +12,7 @@ from core.config import MAX_WEB_QUERIES_PER_SEARCH
 from core.exceptions import QuotaExceededError
 from utils.domains import normalize_domain, is_blacklisted
 from utils.normalization import generate_search_hash
+from utils.phones import normalize_phone_br
 from providers.search.base import SearchProvider
 from providers.search.ddgs_provider import DDGSSearchProvider
 from services.query_generator import QueryGenerator
@@ -20,6 +21,7 @@ from services.cache_service import CacheService
 from services.scoring_service import ScoringService
 from database.repositories.searches import SearchRepository
 from database.repositories.companies import CompanyRepository
+from database.repositories.contacts import ContactRepository
 from database.repositories.usage import UsageRepository
 from providers.cnpj.public_cnpj_provider import PublicCNPJProvider
 
@@ -29,6 +31,7 @@ class SearchService:
         self.session = session
         self.search_repo = SearchRepository(session)
         self.company_repo = CompanyRepository(session)
+        self.contact_repo = ContactRepository(session)
         self.usage_repo = UsageRepository(session)
         self.quota_service = QuotaService(session)
         self.cache_service = CacheService(session)
@@ -287,6 +290,27 @@ class SearchService:
                     comp.cnae_code = official["cnae_code"]
                     comp.cnae_text = official["cnae_text"]
                     comp.status_cadastral = official["status_cadastral"]
+                    raw_phone = official.get("phone") or ""
+                    phone_digits = re.sub(r"\D", "", raw_phone)
+                    local_phone_digits = phone_digits[2:] if phone_digits.startswith("55") and len(phone_digits) in (12, 13) else phone_digits
+                    if len(local_phone_digits) in (10, 11):
+                        self.contact_repo.add_contact(
+                            company_id=comp.id,
+                            contact_type="TELEFONE",
+                            value=normalize_phone_br(raw_phone),
+                            raw_value=raw_phone,
+                            source_url="https://minhareceita.org/",
+                            is_verified=True,
+                        )
+                    public_email = (official.get("email") or "").strip()
+                    if "@" in public_email:
+                        self.contact_repo.add_contact(
+                            company_id=comp.id,
+                            contact_type="EMAIL_PUBLICO",
+                            value=public_email,
+                            source_url="https://minhareceita.org/",
+                            is_verified=True,
+                        )
                     self.company_repo.add_evidence(
                         company_id=comp.id,
                         field_name="official_cnae_candidate",
