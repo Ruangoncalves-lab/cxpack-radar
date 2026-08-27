@@ -290,18 +290,19 @@ class SearchService:
                     comp.cnae_code = official["cnae_code"]
                     comp.cnae_text = official["cnae_text"]
                     comp.status_cadastral = official["status_cadastral"]
-                    raw_phone = official.get("phone") or ""
-                    phone_digits = re.sub(r"\D", "", raw_phone)
-                    local_phone_digits = phone_digits[2:] if phone_digits.startswith("55") and len(phone_digits) in (12, 13) else phone_digits
-                    if len(local_phone_digits) in (10, 11):
-                        self.contact_repo.add_contact(
-                            company_id=comp.id,
-                            contact_type="TELEFONE",
-                            value=normalize_phone_br(raw_phone),
-                            raw_value=raw_phone,
-                            source_url="https://minhareceita.org/",
-                            is_verified=True,
-                        )
+                    official_phones = official.get("phones") or [official.get("phone")]
+                    for raw_phone in filter(None, official_phones):
+                        phone_digits = re.sub(r"\D", "", raw_phone)
+                        local_phone_digits = phone_digits[2:] if phone_digits.startswith("55") and len(phone_digits) in (12, 13) else phone_digits
+                        if len(local_phone_digits) in (10, 11):
+                            self.contact_repo.add_contact(
+                                company_id=comp.id,
+                                contact_type="TELEFONE",
+                                value=normalize_phone_br(raw_phone),
+                                raw_value=raw_phone,
+                                source_url="https://minhareceita.org/",
+                                is_verified=True,
+                            )
                     public_email = (official.get("email") or "").strip()
                     if "@" in public_email:
                         self.contact_repo.add_contact(

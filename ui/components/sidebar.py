@@ -38,7 +38,9 @@ def render_sidebar():
             st.switch_page("streamlit_app.py")
         if st.button("＋  Nova prospecção", use_container_width=True):
             st.switch_page("pages/1_new_search.py")
-        if st.button("◎  Empresas e evidências", use_container_width=True):
+        if st.button("≡  Histórico de buscas", use_container_width=True):
+            st.switch_page("pages/7_search_history.py")
+        if st.button("◎  Base de empresas", use_container_width=True):
             st.switch_page("pages/2_results.py")
         if st.button("◇  Decisores", use_container_width=True):
             st.switch_page("pages/4_decision_makers.py")

@@ -18,8 +18,8 @@ from ui.components.search_panel import render_search_panel_header
 st.set_page_config(page_title="Nova Pesquisa - CXPack Radar", page_icon="🔍", layout="wide")
 apply_app_shell(current_page="search")
 
-st.markdown('<div class="cx-hero-title">Nova Pesquisa Industrial</div>', unsafe_allow_html=True)
-st.markdown('<div class="cx-hero-subtitle">Módulo inteligente de prospecção de fabricantes, contatos públicos e tomadores de decisão via DDGS.</div>', unsafe_allow_html=True)
+st.markdown('<h1 class="cx-hero-title">Nova pesquisa industrial</h1>', unsafe_allow_html=True)
+st.markdown('<div class="cx-hero-subtitle">Encontre fabricantes compatíveis e reúna CNPJ, telefones, e-mails e tomadores de decisão em um só lugar.</div>', unsafe_allow_html=True)
 
 session = next(get_db_session())
 quota_service = QuotaService(session)
@@ -57,7 +57,7 @@ with st.form(key="search_form"):
         company_type = st.selectbox("Tipo de Empresa Desejado", ["Fabricante", "Distribuidor", "Qualquer Tipo"])
 
     st.markdown("---")
-    st.markdown("#### ⚙️ Parâmetros de Pesquisa Web Pública (DDGS)")
+    st.markdown("#### Parâmetros da busca pública")
     col_opt1, col_opt2 = st.columns(2)
     with col_opt1:
         max_variations = st.slider("Variações de Busca Web (Queries Locais)", min_value=1, max_value=5, value=3, help="Máximo de buscas públicas por pesquisa (Padrão: 3)")
@@ -76,7 +76,7 @@ with st.form(key="search_form"):
     st.divider()
     st.info(f"💡 **Execução responsável:** Esta pesquisa poderá executar até **{max_variations} consultas web públicas** via DDGS (R$ 0 de custo por API).")
 
-    submit_button = st.form_submit_button("🚀 BUSCAR FORNECEDORES", use_container_width=True)
+    submit_button = st.form_submit_button("Buscar fornecedores", use_container_width=True)
 
 # Processar o envio da pesquisa
 if submit_button:

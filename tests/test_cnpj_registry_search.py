@@ -19,6 +19,7 @@ def test_search_companies_by_cnae_maps_only_active_companies():
                 "municipio": "SAO PAULO",
                 "uf": "SP",
                 "ddd_telefone_1": "1133334444",
+                "ddd_telefone_2": "11987654321",
                 "email": "CONTATO@EMBALAGENS.COM.BR",
             },
             {
@@ -41,5 +42,6 @@ def test_search_companies_by_cnae_maps_only_active_companies():
     assert rows[0]["cnpj"] == "12345678000190"
     assert rows[0]["trade_name"] == "EMBALAGENS BRASIL"
     assert rows[0]["phone"] == "1133334444"
+    assert rows[0]["phones"] == ["1133334444", "11987654321"]
     assert rows[0]["email"] == "CONTATO@EMBALAGENS.COM.BR"
     assert client.get.call_args.kwargs["params"] == {"cnae": "2222600", "limit": 1000, "uf": "SP"}

@@ -46,8 +46,9 @@ class ExtractionService:
 
         for a_tag in soup.find_all("a", href=True):
             href = a_tag["href"].strip()
+            lower_href = href.lower()
             # mailto:
-            if href.lower().startswith("mailto:"):
+            if lower_href.startswith("mailto:"):
                 email = href.split(":")[1].split("?")[0].strip().lower()
                 if email and email not in seen_values:
                     seen_values.add(email)
@@ -57,10 +58,26 @@ class ExtractionService:
                         "raw_value": href,
                         "source_url": source_url
                     })
-            # WhatsApp link
-            elif "wa.me/" in href.lower() or "api.whatsapp.com" in href.lower():
-                digits = re.sub(r"\D", "", href)
-                if len(digits) >= 10:
+            # Links de telefone e WhatsApp preservam o tipo e a origem do contato.
+            elif lower_href.startswith("tel:"):
+                raw_phone = href.split(":", 1)[1].split("?", 1)[0]
+                norm_phone = normalize_phone_br(raw_phone)
+                phone_digits = re.sub(r"\D", "", raw_phone)
+                if phone_digits.startswith("55") and len(phone_digits) in (12, 13):
+                    phone_digits = phone_digits[2:]
+                if len(phone_digits) in (10, 11) and norm_phone and norm_phone not in seen_values:
+                    seen_values.add(norm_phone)
+                    contacts.append({
+                        "contact_type": "TELEFONE",
+                        "value": norm_phone,
+                        "raw_value": href,
+                        "source_url": source_url
+                    })
+            elif any(marker in lower_href for marker in ("wa.me/", "whatsapp.com/", "whatsapp:")):
+                phone_part = href.split("phone=", 1)[-1] if "phone=" in lower_href else href.split("wa.me/", 1)[-1]
+                digits = re.sub(r"\D", "", phone_part.split("?", 1)[0])
+                local_digits = digits[2:] if digits.startswith("55") and len(digits) in (12, 13) else digits
+                if len(local_digits) in (10, 11):
                     norm_wsp = normalize_phone_br(digits) or digits
                     if norm_wsp not in seen_values:
                         seen_values.add(norm_wsp)
@@ -73,7 +90,9 @@ class ExtractionService:
 
         # 2. Extrair e-mails do texto usando Regex
         clean_text = self.extract_clean_text(html_content)
-        emails_from_text = extract_emails(clean_text)
+        full_text = soup.get_text(separator=" ", strip=True)
+        searchable_text = f"{clean_text} {full_text}"
+        emails_from_text = extract_emails(searchable_text)
         for em in emails_from_text:
             if em not in seen_values:
                 seen_values.add(em)
@@ -85,7 +104,7 @@ class ExtractionService:
                 })
 
         # 3. Extrair telefones corporativos do texto
-        phone_matches = re.findall(PHONE_REGEX, clean_text)
+        phone_matches = re.findall(PHONE_REGEX, searchable_text)
         for raw_ph in phone_matches:
             norm_ph = normalize_phone_br(raw_ph)
             if norm_ph and len(re.sub(r"\D", "", norm_ph)) >= 10:

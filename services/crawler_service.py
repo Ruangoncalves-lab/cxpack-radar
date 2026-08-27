@@ -14,7 +14,9 @@ from utils.domains import normalize_domain
 PRIORITY_KEYWORDS = [
     "contato", "fale-conosco", "sobre", "empresa", "quem-somos",
     "produto", "produtos", "catalogo", "catalog", "embalagem",
-    "embalagens", "solucoes", "aplicacoes", "equipe", "diretoria"
+    "embalagens", "solucoes", "aplicacoes", "equipe", "diretoria",
+    "telefone", "whatsapp", "atendimento", "comercial", "orcamento",
+    "representante", "representantes", "sac", "suporte", "localizacao"
 ]
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CXPackRadar/1.0 (B2B IndustrialProspector)"

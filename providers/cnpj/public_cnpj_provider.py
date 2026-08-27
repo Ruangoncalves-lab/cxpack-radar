@@ -19,6 +19,26 @@ class PublicCNPJProvider(CNPJDataProvider):
         """Remove pontuação do CNPJ deixando apenas 14 dígitos numéricos."""
         return re.sub(r"\D", "", cnpj or "")
 
+    @staticmethod
+    def _phones_from_data(data: Dict[str, Any]) -> List[str]:
+        """Retorna todos os telefones públicos informados no cadastro do CNPJ."""
+        phones = []
+        for key in ("ddd_telefone_1", "ddd_telefone_2", "telefone"):
+            value = str(data.get(key) or "").strip()
+            if value and value not in phones:
+                phones.append(value)
+        return phones
+
+    @staticmethod
+    def _address_from_data(data: Dict[str, Any]) -> str:
+        """Monta o endereço cadastral completo sem deixar separadores vazios."""
+        street = ", ".join(filter(None, [data.get("logradouro"), str(data.get("numero") or ""), data.get("complemento")]))
+        city_state = " / ".join(filter(None, [data.get("municipio"), data.get("uf")]))
+        parts = [street, data.get("bairro"), city_state]
+        if data.get("cep"):
+            parts.append(f"CEP {data['cep']}")
+        return " — ".join(filter(None, parts))
+
     def get_company_by_cnpj(self, cnpj: str) -> Optional[Dict[str, Any]]:
         clean = self._clean_cnpj(cnpj)
         if len(clean) != 14:
@@ -31,6 +51,7 @@ class PublicCNPJProvider(CNPJDataProvider):
                 res = client.get(url, headers={"User-Agent": USER_AGENT})
                 if res.status_code == 200:
                     data = res.json()
+                    phones = self._phones_from_data(data)
                     # Mapear QSA se presente
                     qsa_list = []
                     for q in data.get("qsa", []):
@@ -52,8 +73,9 @@ class PublicCNPJProvider(CNPJDataProvider):
                         "capital_social": float(data.get("capital_social") or 0.0),
                         "city": data.get("municipio") or "",
                         "state": data.get("uf") or "",
-                        "address": f"{data.get('logradouro', '')}, {data.get('numero', '')} - {data.get('bairro', '')}",
-                        "phone": data.get("ddd_telefone_1") or data.get("telefone") or "",
+                        "address": self._address_from_data(data),
+                        "phone": phones[0] if phones else "",
+                        "phones": phones,
                         "email": data.get("email") or "",
                         "qsa": qsa_list,
                         "source": "BrasilAPI / Dados Abertos Receita Federal"
@@ -68,6 +90,7 @@ class PublicCNPJProvider(CNPJDataProvider):
                 res = client.get(url, headers={"User-Agent": USER_AGENT})
                 if res.status_code == 200:
                     data = res.json()
+                    phones = self._phones_from_data(data)
                     qsa_list = []
                     for q in data.get("qsa", []):
                         qsa_list.append({
@@ -88,8 +111,9 @@ class PublicCNPJProvider(CNPJDataProvider):
                         "capital_social": float(data.get("capital_social") or 0.0),
                         "city": data.get("municipio") or "",
                         "state": data.get("uf") or "",
-                        "address": f"{data.get('logradouro', '')}, {data.get('numero', '')}",
-                        "phone": data.get("ddd_telefone_1") or "",
+                        "address": self._address_from_data(data),
+                        "phone": phones[0] if phones else "",
+                        "phones": phones,
                         "email": data.get("email") or "",
                         "qsa": qsa_list,
                         "source": "MinhaReceita / Dados Abertos Receita Federal"
@@ -132,6 +156,7 @@ class PublicCNPJProvider(CNPJDataProvider):
             cnpj = str(data.get("cnpj") or "")
             if len(cnpj) != 14:
                 continue
+            phones = self._phones_from_data(data)
             companies.append({
                 "cnpj": cnpj,
                 "legal_name": data.get("razao_social") or "",
@@ -141,7 +166,8 @@ class PublicCNPJProvider(CNPJDataProvider):
                 "cnae_text": data.get("cnae_fiscal_descricao") or "",
                 "city": data.get("municipio") or "",
                 "state": data.get("uf") or "",
-                "phone": data.get("ddd_telefone_1") or "",
+                "phone": phones[0] if phones else "",
+                "phones": phones,
                 "email": data.get("email") or "",
                 "qsa": data.get("qsa") or [],
                 "source": "Minha Receita / Dados Abertos Receita Federal",

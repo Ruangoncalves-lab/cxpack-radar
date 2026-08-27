@@ -1,38 +1,49 @@
-# 📡 CXPack Radar - Prospecção B2B Industrial
+# CXPack Radar
 
-O **CXPack Radar** é uma plataforma inteligente para prospecção de fabricantes e fornecedores industriais B2B, desenvolvida com Python 3.12, Streamlit, Google Gemini Developer API (com Search Grounding) e SQLAlchemy.
+Plataforma de prospecção industrial para pesquisar fabricantes por produto, capacidade, material e localização; consolidar dados públicos de CNPJ; encontrar telefones, e-mails, WhatsApp, QSA e tomadores de decisão; e consultar o histórico de cada busca.
 
-## 🌟 Principais Recursos
+## Stack principal
 
-- 💰 **Custo R$ 0 de API**: Opera no Free Tier do Google Gemini com Search Grounding.
-- 🗄️ **Banco Proprietário Híbrido**: Opera localmente em SQLite e transiciona suavemente para PostgreSQL/Supabase em produção apenas alterando a `DATABASE_URL`.
-- ⚡ **Cache Inteligente**: Reutiliza dados de buscas dos últimos 30 dias por hash determinístico (`search_hash`), economizando chamadas de API.
-- 🚫 **Anti-Desperdício & Proteção de Cotas**:
-  - Teto de segurança diário configurável (`DAILY_GROUNDED_SAFETY_LIMIT = 450`).
-  - Gerador local de variação de queries industriais sem consumo de IA.
-  - Normalizador de domínios raiz com blacklist configurável de marketplaces (Mercado Livre, Shopee, Amazon, etc.).
-- 🛑 **Proteção Idempotente**: Uso de `st.form` e estados de busca (`CREATED`, `RUNNING`, `COMPLETED`) impedindo execuções duplicadas acidentais no Streamlit.
+- Frontend: React, Vite, Tailwind CSS, shadcn/ui e Motion.
+- API: FastAPI.
+- Pipeline: serviços Python existentes com DDGS, BrasilAPI, Minha Receita e crawler próprio.
+- Banco: SQLAlchemy com SQLite local ou PostgreSQL/Supabase via `DATABASE_URL`.
 
-## 🛠️ Stack Tecnológica
+Gemini é opcional. A descoberta principal e a consulta cadastral não dependem de IA generativa.
 
-- **Interface**: Streamlit
-- **Linguagem**: Python 3.12
-- **IA Provider**: Google Gemini (`google-genai` SDK) - Modelo `gemini-2.5-flash-lite`
-- **Search Provider**: Gemini + Grounding with Google Search
-- **ORM & Banco**: SQLAlchemy 2.x (SQLite / PostgreSQL)
-- **Validação**: Pydantic
+## Desenvolvimento
 
-## 🚀 Como Executar
-
-Consulte o guia detalhado em [SETUP_INICIANTE.md](file:///c:/Users/Administrator/.gemini/antigravity-ide/scratch/plastic-prospector-saas/SETUP_INICIANTE.md).
+Requer Node.js 20.19+ e Python 3.12+.
 
 ```bash
-# 1. Instalar dependências
 pip install -r requirements.txt
-
-# 2. Configurar segredos (.streamlit/secrets.toml)
-# Adicione sua GEMINI_API_KEY no arquivo .streamlit/secrets.toml
-
-# 3. Iniciar a aplicação
-streamlit run streamlit_app.py
+npm install
 ```
+
+Em dois terminais:
+
+```bash
+npm run api
+npm run dev
+```
+
+A interface fica em `http://localhost:5173` e a API em `http://localhost:8000`.
+
+## Produção
+
+O FastAPI serve o build do Vite pela mesma porta:
+
+```bash
+npm run build
+npm run serve
+```
+
+Configure `DATABASE_URL` para usar PostgreSQL/Supabase. Sem essa variável, o sistema usa `data/cxpack_radar.db`.
+
+## Fluxos disponíveis
+
+- Visão geral com métricas reais do banco.
+- Busca técnica acompanhada em tempo real por polling.
+- Lista de empresas filtrável por execução.
+- Perfil completo com origem dos contatos e ação de WhatsApp.
+- Histórico de pesquisas persistidas.

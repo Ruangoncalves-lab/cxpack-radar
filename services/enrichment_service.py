@@ -15,6 +15,8 @@ from services.decision_maker_service import DecisionMakerService
 from services.scoring_service import ScoringService
 from database.repositories.companies import CompanyRepository
 from database.repositories.cnpj_matches import CNPJMatchRepository
+from database.repositories.contacts import ContactRepository
+from utils.phones import normalize_phone_br
 
 
 class EnrichmentService:
@@ -22,6 +24,7 @@ class EnrichmentService:
         self.session = session
         self.company_repo = CompanyRepository(session)
         self.match_repo = CNPJMatchRepository(session)
+        self.contact_repo = ContactRepository(session)
         self.cnpj_provider = PublicCNPJProvider()
         self.matching_service = CNPJMatchingService()
         self.qsa_service = QSAService(session)
@@ -52,16 +55,24 @@ class EnrichmentService:
             cnpj_info = self.cnpj_provider.get_company_by_cnpj(company.cnpj)
             if cnpj_info:
                 # Algoritmo de Matching
-                match_res = self.matching_service.calculate_match_score(
-                    company_name=company.name,
-                    cnpj_legal_name=cnpj_info["legal_name"],
-                    cnpj_trade_name=cnpj_info["trade_name"],
-                    company_city=company.city,
-                    cnpj_city=cnpj_info["city"],
-                    company_state=company.state,
-                    cnpj_state=cnpj_info["state"],
-                    company_domain=company.domain,
-                    cnpj_email=cnpj_info["email"]
+                is_registry_candidate = (
+                    company.company_type == "CANDIDATO_CNAE"
+                    and company.cnpj == cnpj_info["cnpj"]
+                )
+                match_res = (
+                    {"match_score": 100, "is_auto_matched": True}
+                    if is_registry_candidate
+                    else self.matching_service.calculate_match_score(
+                        company_name=company.name,
+                        cnpj_legal_name=cnpj_info["legal_name"],
+                        cnpj_trade_name=cnpj_info["trade_name"],
+                        company_city=company.city,
+                        cnpj_city=cnpj_info["city"],
+                        company_state=company.state,
+                        cnpj_state=cnpj_info["state"],
+                        company_domain=company.domain,
+                        cnpj_email=cnpj_info["email"]
+                    )
                 )
 
                 # Salvar registro do match no histórico
@@ -72,7 +83,9 @@ class EnrichmentService:
                     trade_name=cnpj_info["trade_name"],
                     cnae_code=cnpj_info["cnae_code"],
                     cnae_text=cnpj_info["cnae_text"],
+                    cnaes_secondary=", ".join(cnpj_info.get("cnaes_secondary") or []),
                     status_cadastral=cnpj_info["status_cadastral"],
+                    address=cnpj_info.get("address"),
                     city=cnpj_info["city"],
                     state=cnpj_info["state"],
                     phone=cnpj_info["phone"],
@@ -95,6 +108,41 @@ class EnrichmentService:
                         company.state = cnpj_info["state"]
 
                     enriched_log.append(f"CNPJ {company.cnpj} vinculado com sucesso (Match Score: {match_res['match_score']}/100).")
+
+                    official_source = (
+                        "https://brasilapi.com.br/"
+                        if "BrasilAPI" in cnpj_info.get("source", "")
+                        else "https://minhareceita.org/"
+                    )
+                    new_official_contacts = 0
+                    for raw_phone in cnpj_info.get("phones") or [cnpj_info.get("phone")]:
+                        phone_digits = "".join(filter(str.isdigit, raw_phone or ""))
+                        if phone_digits.startswith("55") and len(phone_digits) in (12, 13):
+                            phone_digits = phone_digits[2:]
+                        normalized_phone = normalize_phone_br(raw_phone or "")
+                        if normalized_phone and len(phone_digits) in (10, 11):
+                            _, is_new = self.contact_repo.add_contact(
+                                company_id=company.id,
+                                contact_type="TELEFONE",
+                                value=normalized_phone,
+                                raw_value=raw_phone,
+                                source_url=official_source,
+                                is_verified=True,
+                            )
+                            new_official_contacts += int(is_new)
+
+                    public_email = (cnpj_info.get("email") or "").strip()
+                    if "@" in public_email:
+                        _, is_new = self.contact_repo.add_contact(
+                            company_id=company.id,
+                            contact_type="EMAIL_PUBLICO",
+                            value=public_email,
+                            source_url=official_source,
+                            is_verified=True,
+                        )
+                        new_official_contacts += int(is_new)
+                    if new_official_contacts:
+                        enriched_log.append(f"{new_official_contacts} contatos oficiais do CNPJ adicionados.")
 
                     # Importar QSA
                     qsa_res = self.qsa_service.import_qsa_partners(company.id, cnpj_info.get("qsa", []))

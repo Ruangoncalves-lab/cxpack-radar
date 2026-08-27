@@ -3,10 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Node / Next.js (se houver no diretório)
+# Frontend
 node_modules/
 .next/
 out/
+dist/
+*.tsbuildinfo
 
 # Caching & Local DB
 data/
@@ -26,5 +28,6 @@ env/
 .gemini/
 .planning/
 scratch/
+.impeccable/mocks/
 .DS_Store
 Thumbs.db

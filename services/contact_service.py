@@ -19,7 +19,7 @@ class ContactService:
         self.company_repo = CompanyRepository(session)
         self.page_repo = PageRepository(session)
         self.contact_repo = ContactRepository(session)
-        self.crawler = CrawlerService(max_pages_per_domain=5, timeout=8.0)
+        self.crawler = CrawlerService(max_pages_per_domain=8, timeout=8.0)
         self.extractor = ExtractionService()
 
     def crawl_and_extract_company_contacts(self, company_id: int) -> Dict[str, Any]:
@@ -31,8 +31,6 @@ class ContactService:
         4. Extrai e-mails, telefones, WhatsApp e CNPJ público
         5. Atualiza a empresa e adiciona evidências
         """
-        company = self.session.get(CompanyRepository(self.session).session.query(CompanyRepository(self.session).session.get_bind().models.Company).class_, company_id) if hasattr(CompanyRepository(self.session), "models") else None
-        
         # Obter empresa pelo ID direto da sessão
         from database.models import Company
         company = self.session.get(Company, company_id)
@@ -49,7 +47,7 @@ class ContactService:
         if not target_url.startswith(("http://", "https://")):
             target_url = "https://" + target_url
 
-        # 1. Executar Crawler de até 5 páginas
+        # 1. Executar crawler nas páginas mais prováveis de conter contatos
         pages_res = self.crawler.crawl_website(target_url)
 
         pages_saved = 0

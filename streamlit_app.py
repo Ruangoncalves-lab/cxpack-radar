@@ -1,4 +1,4 @@
-"""CXPack Radar — visão geral da inteligência comercial industrial."""
+"""CXPack Radar — central operacional de prospecção industrial."""
 
 import html
 
@@ -7,15 +7,16 @@ import streamlit as st
 from database.connection import get_db_session, init_db
 from database.repositories.companies import CompanyRepository
 from database.repositories.decision_makers import DecisionMakerRepository
+from database.repositories.searches import SearchRepository
 from services.quota_service import QuotaService
 from ui.layout import apply_app_shell
 
 
 st.set_page_config(
     page_title="CXPack Radar | Inteligência comercial industrial",
-    page_icon="◉",
+    page_icon="📡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 apply_app_shell(current_page="home")
 
@@ -27,108 +28,102 @@ except Exception as exc:
 session = next(get_db_session())
 company_repo = CompanyRepository(session)
 dm_repo = DecisionMakerRepository(session)
+search_repo = SearchRepository(session)
 quota_service = QuotaService(session)
 
 companies = company_repo.list_companies(min_score=0)
 decision_makers = dm_repo.list_all_decision_makers(limit=1000)
+searches = search_repo.list_searches(limit=100)
 quota = quota_service.get_quota_dashboard_data()
 
 manufacturers = [company for company in companies if company.company_type == "FABRICANTE"]
-qualified = [company for company in companies if company.score >= 70]
+candidates = [company for company in companies if company.company_type == "CANDIDATO_CNAE"]
 companies_with_contact = [company for company in companies if company.contacts or company.department_contacts]
 actionable_rate = round(len(companies_with_contact) / len(companies) * 100) if companies else 0
-user_name = st.session_state.get("user", {}).get("name", "Administrador").split()[0]
+quota_limit = max(quota.get("safety_limit", 1), 1)
+quota_progress = min(100, round(quota.get("today_total", 0) / quota_limit * 100))
 
-st.markdown(
-    f"""
-    <section class="cx-command-hero">
-        <div class="cx-command-copy">
-            <div class="cx-eyebrow"><span></span> INTELIGÊNCIA COMERCIAL INDUSTRIAL</div>
-            <h1>Do produto que você precisa<br>ao <em>contato que decide.</em></h1>
-            <p>Encontre fabricantes, valide evidências e descubra o melhor caminho de abordagem — sem transformar pesquisa em planilha infinita.</p>
-            <div class="cx-trust-line">
-                <span>✓ Fontes rastreáveis</span><span>✓ Dados públicos</span><span>✓ Busca web sem custo</span>
-            </div>
-        </div>
-        <div class="cx-radar-visual" aria-label="Radar de prospecção">
-            <div class="cx-radar-ring ring-1"></div><div class="cx-radar-ring ring-2"></div>
-            <div class="cx-radar-sweep"></div><div class="cx-radar-core">CX</div>
-            <span class="cx-radar-dot dot-1"></span><span class="cx-radar-dot dot-2"></span><span class="cx-radar-dot dot-3"></span>
-            <div class="cx-radar-caption"><strong>{len(qualified)}</strong> oportunidades qualificadas</div>
-        </div>
-    </section>
-    """,
-    unsafe_allow_html=True,
-)
-
-cta_primary, cta_secondary, cta_space = st.columns([1.15, 1.05, 4])
-with cta_primary:
-    if st.button("Iniciar nova prospecção  →", type="primary", use_container_width=True):
-        st.switch_page("pages/1_new_search.py")
-with cta_secondary:
-    if st.button("Explorar empresas", use_container_width=True):
-        st.switch_page("pages/2_results.py")
-
-st.markdown('<div class="cx-section-kicker">VISÃO DO PIPELINE</div>', unsafe_allow_html=True)
-kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
-metrics = [
-    (kpi_1, "Base mapeada", len(companies), "empresas com domínio único"),
-    (kpi_2, "Fabricantes", len(manufacturers), "identificados na base"),
-    (kpi_3, "Leads acionáveis", f"{actionable_rate}%", "com contato publicado"),
-    (kpi_4, "Decisores", len(decision_makers), "pessoas e setores mapeados"),
+metric_data = [
+    ("Base mapeada", len(companies), "empresas cadastradas", "DB"),
+    ("Fabricantes", len(manufacturers), "com evidência comercial", "OK"),
+    ("Leads acionáveis", f"{actionable_rate}%", "com contato publicado", "@"),
+    ("Decisores", len(decision_makers), "pessoas e setores", "DM"),
 ]
-for column, label, value, note in metrics:
-    with column:
-        st.markdown(
-            f'<div class="cx-pipeline-card"><div class="cx-pipeline-label">{label}</div>'
-            f'<div class="cx-pipeline-value">{value}</div><div class="cx-pipeline-note">{note}</div></div>',
-            unsafe_allow_html=True,
-        )
+cards = "".join(
+    f'<article class="cx-stat-card"><div class="cx-stat-top"><span>{icon}</span></div>'
+    f'<strong>{value}</strong><p>{label}</p><small>{note}</small></article>'
+    for label, value, note, icon in metric_data
+)
+st.markdown(f'<section class="cx-stat-grid">{cards}</section>', unsafe_allow_html=True)
 
-left, right = st.columns([1.65, 1])
-with left:
-    st.markdown(
-        '<div class="cx-section-heading"><div><span>PRÓXIMAS OPORTUNIDADES</span>'
-        '<h2>Empresas prontas para investigar</h2></div></div>',
-        unsafe_allow_html=True,
-    )
-    shortlist = companies[:5]
+main, aside = st.columns([2.15, 1], gap="large")
+with main:
+    st.markdown('<section class="cx-panel-head"><div><h2>Empresas para investigar</h2><p>Prioridade por score e disponibilidade de contato</p></div></section>', unsafe_allow_html=True)
+    shortlist = companies[:6]
     if shortlist:
         rows = ""
         for company in shortlist:
             safe_name = html.escape(company.name or company.domain)
-            safe_place = html.escape(" · ".join(filter(None, [company.city, company.state])) or "Brasil")
-            status = "Pronto para contato" if company.contacts or company.department_contacts else "Enriquecer dados"
-            status_class = "ready" if company.contacts or company.department_contacts else "enrich"
+            place = html.escape(" / ".join(filter(None, [company.city, company.state])) or "Brasil")
+            has_contact = bool(company.contacts or company.department_contacts)
+            status = "Contato disponível" if has_contact else "Enriquecer dados"
             rows += (
-                f'<div class="cx-opportunity-row"><div class="cx-company-mark">{safe_name[:1].upper()}</div>'
-                f'<div class="cx-company-main"><strong>{safe_name}</strong><span>{safe_place} · {company.company_type.title()}</span></div>'
-                f'<div class="cx-opportunity-status {status_class}">{status}</div><div class="cx-score">{company.score}<small>/100</small></div></div>'
+                f'<div class="cx-data-row"><span class="cx-data-avatar">{safe_name[:1].upper()}</span>'
+                f'<div class="cx-data-main"><strong>{safe_name}</strong><span>{place} · {company.company_type.replace("_", " ").title()}</span></div>'
+                f'<span class="cx-data-status {"ready" if has_contact else "pending"}">{status}</span>'
+                f'<b>{company.score}<small>/100</small></b></div>'
             )
-        st.markdown(f'<div class="cx-opportunity-list">{rows}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="cx-data-panel">{rows}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(
-            '<div class="cx-empty-state"><div class="cx-empty-icon">⌁</div><strong>Seu radar está pronto.</strong>'
-            '<p>Faça a primeira busca para criar uma lista de fabricantes com evidências, contatos e decisores.</p></div>',
-            unsafe_allow_html=True,
-        )
+        st.info("Sua base ainda está vazia. Inicie uma busca para encontrar os primeiros fabricantes.")
 
-with right:
+    action_a, action_b, action_space = st.columns([1, 1, 2])
+    with action_a:
+        if st.button("Nova prospecção", type="primary", width="stretch"):
+            st.switch_page("pages/1_new_search.py")
+    with action_b:
+        if st.button("Abrir empresas", width="stretch"):
+            st.switch_page("pages/2_results.py")
+
+    st.markdown('<section class="cx-panel-head cx-panel-space"><div><h2>Buscas recentes</h2><p>Últimas execuções registradas no radar</p></div></section>', unsafe_allow_html=True)
+    if searches:
+        search_rows = ""
+        for search in searches[:5]:
+            query = html.escape(" · ".join(filter(None, [search.product, search.capacity, search.material])))
+            search_rows += (
+                f'<div class="cx-search-row"><span>{search.created_at:%d/%m}</span><div><strong>{query}</strong>'
+                f'<small>{html.escape(search.location or "Brasil")} · {search.status}</small></div>'
+                f'<b>{search.companies_found or 0}<small> empresas</small></b></div>'
+            )
+        st.markdown(f'<div class="cx-data-panel">{search_rows}</div>', unsafe_allow_html=True)
+    else:
+        st.info("Nenhuma busca registrada.")
+
+with aside:
     st.markdown(
         f"""
-        <div class="cx-mission-card">
-            <div class="cx-mission-top"><span>MISSÃO DE HOJE</span><span class="cx-live-dot">ATIVO</span></div>
-            <h2>Transforme pesquisa<br>em conversa comercial.</h2>
-            <div class="cx-mission-step"><b>01</b><div><strong>Defina o briefing</strong><span>Produto, material, volume e região.</span></div></div>
-            <div class="cx-mission-step"><b>02</b><div><strong>Valide quem fabrica</strong><span>Score e evidências mantêm o dado honesto.</span></div></div>
-            <div class="cx-mission-step"><b>03</b><div><strong>Encontre a porta de entrada</strong><span>Compras, suprimentos, diretoria ou QSA.</span></div></div>
-            <div class="cx-mission-foot"><span>{quota['today_total']} buscas hoje</span><span>DDGS · R$ 0</span></div>
-        </div>
+        <section class="cx-ops-card">
+            <span class="cx-ops-state">RADAR OPERACIONAL</span>
+            <h2>Busca gratuita ativa</h2>
+            <p>{quota.get('today_total', 0)} de {quota_limit} consultas usadas hoje</p>
+            <div class="cx-ops-progress" role="progressbar" aria-label="Uso do limite diário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{quota_progress}"><span style="width:{quota_progress}%"></span></div>
+            <div class="cx-ops-summary"><strong>{quota_progress}%</strong><span>do limite diário interno</span></div>
+            <a href="/api_usage?auth_token=active" target="_self">Ver uso detalhado</a>
+        </section>
         """,
         unsafe_allow_html=True,
     )
 
-st.markdown(
-    f'<div class="cx-welcome-note">Olá, {html.escape(user_name)}. O radar prioriza dados publicados e sempre mantém a fonte junto da informação.</div>',
-    unsafe_allow_html=True,
-)
+    tasks = [
+        ("Validar candidatos CNAE", len(candidates), "Confirmar produto no site oficial"),
+        ("Completar contatos", max(0, len(companies) - len(companies_with_contact)), "Buscar telefone, e-mail ou WhatsApp"),
+        ("Revisar decisores", len(decision_makers), "Sócios, compras e suprimentos mapeados"),
+    ]
+    task_rows = "".join(
+        f'<div class="cx-task-row"><span>{value}</span><div><strong>{title}</strong><small>{description}</small></div></div>'
+        for title, value, description in tasks
+    )
+    st.markdown(f'<section class="cx-task-panel"><h2>Próximas ações</h2>{task_rows}</section>', unsafe_allow_html=True)
+
+    if st.button("Ver histórico completo", width="stretch"):
+        st.switch_page("pages/7_search_history.py")

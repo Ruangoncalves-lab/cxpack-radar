@@ -2,6 +2,9 @@
 Tela de Resultados da Pesquisa, Score, Enriquecimento CNPJ/QSA, Decisores e Gestão de Empresas (pages/2_results.py).
 """
 
+import html
+import re
+
 import streamlit as st
 import pandas as pd
 from database.connection import get_db_session
@@ -19,10 +22,41 @@ from services.decision_maker_service import DECISION_MAKER_MIN_SCORE
 from ui.layout import apply_app_shell
 from ui.components.status_badge import get_status_badge
 
+
+def format_brl(value):
+    if value is None:
+        return "Não informado"
+    formatted = f"{float(value):,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+    return f"R$ {formatted}"
+
+
+def format_date(value):
+    return value.strftime("%d/%m/%Y às %H:%M") if value else "Não informado"
+
+
+def whatsapp_url(phone):
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("55") and len(digits) in (12, 13):
+        return f"https://wa.me/{digits}"
+    if len(digits) in (10, 11):
+        return f"https://wa.me/55{digits}"
+    return None
+
+
+def render_company_facts(items):
+    cards = "".join(
+        '<div class="cx-company-fact">'
+        f'<span>{html.escape(label)}</span>'
+        f'<strong>{html.escape(str(value or "Não informado"))}</strong>'
+        "</div>"
+        for label, value in items
+    )
+    st.markdown(f'<div class="cx-company-facts">{cards}</div>', unsafe_allow_html=True)
+
 st.set_page_config(page_title="Resultados - CXPack Radar", page_icon="📊", layout="wide")
 apply_app_shell(current_page="results")
 
-st.markdown('<div class="cx-hero-title">Resultados & Banco de Empresas</div>', unsafe_allow_html=True)
+st.markdown('<h1 class="cx-hero-title">Resultados & Banco de Empresas</h1>', unsafe_allow_html=True)
 st.markdown('<div class="cx-hero-subtitle">Base de fornecedores prospectados, enriquecimento de CNPJ/QSA e contatos do setor de Compras.</div>', unsafe_allow_html=True)
 
 session = next(get_db_session())
@@ -37,6 +71,28 @@ enrichment_service = EnrichmentService(session)
 dept_service = DepartmentContactService(session)
 scoring_service = ScoringService()
 
+searches = search_repo.list_searches(limit=50)
+scope_options = [None] + [search.id for search in searches]
+active_search_id = st.session_state.get("active_search_id")
+default_scope = scope_options.index(active_search_id) if active_search_id in scope_options else 0
+
+
+def format_scope(search_id):
+    if search_id is None:
+        return "Todas as empresas da base"
+    search = next(item for item in searches if item.id == search_id)
+    details = " · ".join(filter(None, [search.product, search.capacity, search.material]))
+    return f"Busca #{search.id} — {details} ({search.created_at:%d/%m/%Y})"
+
+
+selected_scope = st.selectbox(
+    "Quais dados você quer consultar?",
+    scope_options,
+    index=default_scope,
+    format_func=format_scope,
+)
+st.session_state["active_search_id"] = selected_scope
+
 col_f1, col_f2 = st.columns(2)
 with col_f1:
     min_score = st.slider("Score Mínimo", min_value=0, max_value=100, value=0)
@@ -46,7 +102,15 @@ with col_f2:
         ["TODOS", "FABRICANTE", "CANDIDATO_CNAE", "DISTRIBUIDOR", "DESCONHECIDO"]
     )
 
-companies = company_repo.list_companies(min_score=min_score, company_type=company_type_filter)
+if selected_scope is None:
+    companies = company_repo.list_companies(min_score=min_score, company_type=company_type_filter)
+else:
+    companies = search_repo.list_companies_for_search(selected_scope)
+    companies = [
+        company for company in companies
+        if company.score >= min_score
+        and (company_type_filter == "TODOS" or company.company_type == company_type_filter)
+    ]
 
 if not companies:
     st.info("Nenhuma empresa encontrada com os filtros selecionados. Realize uma nova pesquisa na tela `1_new_search`.")
@@ -93,46 +157,144 @@ else:
     if selected_domain:
         comp = company_repo.get_by_domain(selected_domain)
         if comp:
+            contacts = contact_repo.get_company_contacts(comp.id)
+            department_contacts = dept_repo.get_company_department_contacts(comp.id)
+            decision_makers = dm_repo.get_company_decision_makers(comp.id)
+            latest_match = max(comp.cnpj_matches, key=lambda item: item.id, default=None)
+
             col_d1, col_d2 = st.columns([2, 1])
 
             with col_d1:
-                st.markdown(f"## 🏢 {comp.name}")
-                if comp.legal_name:
-                    st.markdown(f"**Razão Social:** `{comp.legal_name}`")
-                if comp.website:
-                    st.markdown(f"**Website Oficial:** [{comp.website}]({comp.website})")
-                else:
-                    st.info("Website ainda não localizado. Este registro veio da base pública do CNPJ por CNAE.")
-                st.markdown(f"**CNPJ Público:** `{comp.cnpj or 'Não vinculado'}` | **Situação:** `{comp.status_cadastral or 'ATIVA'}`")
-                if comp.cnae_text:
-                    st.markdown(f"**CNAE Principal:** `{comp.cnae_code}` - {comp.cnae_text}")
-
+                st.markdown(f"## {comp.name}")
                 b_type = "fabricante" if comp.company_type == "FABRICANTE" else ("distribuidor" if comp.company_type == "DISTRIBUIDOR" else "inferido")
                 st.markdown(f"**Classificação:** {get_status_badge(comp.company_type, b_type)} | **Score Total:** `{comp.score}/100`", unsafe_allow_html=True)
+
+                render_company_facts([
+                    ("Razão social", comp.legal_name),
+                    ("Nome fantasia", comp.trade_name),
+                    ("CNPJ", comp.cnpj),
+                    ("Situação cadastral", comp.status_cadastral or "Não consultada"),
+                    ("CNAE principal", " — ".join(filter(None, [comp.cnae_code, comp.cnae_text]))),
+                    ("CNAEs secundários", latest_match.cnaes_secondary if latest_match else None),
+                    ("Capital social", format_brl(comp.capital_social)),
+                    ("Endereço público", latest_match.address if latest_match else None),
+                    ("Cidade / UF", " / ".join(filter(None, [comp.city, comp.state]))),
+                    ("País", comp.country),
+                    ("Domínio", comp.domain),
+                    ("Status no CRM", comp.crm_status),
+                    ("Responsável", comp.assigned_to),
+                    ("Primeiro registro", format_date(comp.first_seen_at)),
+                    ("Última atualização", format_date(comp.updated_at)),
+                    ("Última coleta do site", format_date(comp.last_crawled_at)),
+                    ("Confiança da identificação", f"{int((comp.confidence or 0) * 100)}%"),
+                ])
+
                 if comp.description:
-                    st.markdown(f"**Descrição:** {comp.description}")
+                    st.markdown("**Descrição da empresa**")
+                    st.write(comp.description)
+                if comp.notes:
+                    st.markdown("**Notas comerciais**")
+                    st.write(comp.notes)
 
             with col_d2:
-                st.markdown("#### ⚡ Ações Inteligentes")
+                st.markdown("#### Ações da empresa")
 
-                if st.button("🔍 ENRIQUECER EMPRESA (CNPJ, QSA & COMPRAS)", use_container_width=True):
+                if st.button("Buscar telefone e completar dados", type="primary", use_container_width=True):
                     with st.spinner(f"Executando enriquecimento em camadas para {comp.name}..."):
                         res = enrichment_service.enrich_company(comp.id, operator="usuario")
                         if res["success"]:
-                            st.success(f"🎉 Enriquecimento concluído com sucesso! (Nível Alcançado: {res['best_level']})")
+                            st.success(f"Enriquecimento concluído. Nível alcançado: {res['best_level']}.")
                             for log_msg in res["log"]:
                                 st.info(f"• {log_msg}")
                             st.rerun()
                         else:
                             st.error(res["message"])
 
-                st.write("")
-                if st.button("🗑️ EXCLUIR EMPRESA DO BANCO", use_container_width=True):
+                if comp.website:
+                    st.link_button("Abrir site oficial", comp.website, use_container_width=True)
+                else:
+                    st.caption("Site oficial ainda não localizado.")
+
+                if st.button("Excluir empresa do banco", use_container_width=True):
                     if company_repo.delete_company(comp.id):
                         st.success(f"Empresa '{comp.name}' excluída com sucesso!")
                         st.rerun()
                     else:
                         st.error("Erro ao excluir empresa.")
+
+            st.markdown("### Contato rápido")
+            phone_channels = {}
+
+            def add_phone_channel(value, contact_type, source, verified=False):
+                if not value:
+                    return
+                key = re.sub(r"\D", "", value)
+                if key.startswith("55") and len(key) in (12, 13):
+                    key = key[2:]
+                if key not in phone_channels:
+                    phone_channels[key] = {
+                        "value": value,
+                        "type": contact_type,
+                        "source": source or "Fonte pública",
+                        "verified": verified,
+                    }
+
+            for contact in contacts:
+                if contact.contact_type in ("TELEFONE", "WHATSAPP"):
+                    add_phone_channel(
+                        contact.value,
+                        contact.contact_type,
+                        contact.source_url,
+                        contact.is_verified,
+                    )
+            for contact in department_contacts:
+                add_phone_channel(contact.whatsapp, "WHATSAPP", contact.source_url)
+                add_phone_channel(contact.phone, "TELEFONE", contact.source_url)
+            for decision_maker in decision_makers:
+                add_phone_channel(decision_maker.phone, "TELEFONE", decision_maker.source_url)
+            if latest_match:
+                add_phone_channel(latest_match.phone, "TELEFONE", "Cadastro público do CNPJ", True)
+
+            if phone_channels:
+                for channel in phone_channels.values():
+                    contact_col, action_col = st.columns([2.2, 1])
+                    verified_label = " · verificado no CNPJ" if channel["verified"] else ""
+                    type_label = "WhatsApp publicado" if channel["type"] == "WHATSAPP" else "Telefone público"
+                    with contact_col:
+                        st.markdown(
+                            '<div class="cx-contact-copy">'
+                            f'<strong>{html.escape(channel["value"])}</strong>'
+                            f'<span>{html.escape(type_label + verified_label)} · Fonte: {html.escape(channel["source"])}</span>'
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
+                    with action_col:
+                        wa_url = whatsapp_url(channel["value"])
+                        if wa_url:
+                            label = "Abrir WhatsApp" if channel["type"] == "WHATSAPP" else "Testar no WhatsApp"
+                            st.link_button(label, wa_url, use_container_width=True)
+                        else:
+                            st.button("Número inválido", disabled=True, use_container_width=True)
+            else:
+                st.warning("Nenhum telefone foi encontrado ainda. Use **Buscar telefone e completar dados** para consultar o CNPJ e o site oficial.")
+
+            email_channels = {}
+            for contact in contacts:
+                if "EMAIL" in contact.contact_type:
+                    email_channels.setdefault(contact.value.lower(), contact.source_url or "Fonte pública")
+            for contact in department_contacts:
+                if contact.email:
+                    email_channels.setdefault(contact.email.lower(), contact.source_url or "Contato do departamento")
+            for decision_maker in decision_makers:
+                if decision_maker.email:
+                    email_channels.setdefault(decision_maker.email.lower(), decision_maker.source_url or "Tomador de decisão")
+
+            if email_channels:
+                with st.expander(f"E-mails encontrados ({len(email_channels)})"):
+                    for email, source in email_channels.items():
+                        email_col, email_action_col = st.columns([2.2, 1])
+                        email_col.markdown(f"**{email}**  \nFonte: {source}")
+                        email_action_col.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
 
             st.divider()
 
