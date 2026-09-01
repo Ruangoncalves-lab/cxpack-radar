@@ -24,6 +24,7 @@ class DDGSSearchProvider(SearchProvider):
         self.delay_seconds = delay_seconds
         self.max_retries = max_retries
         self.provider_name = "DDGS"
+        self.last_error: Optional[str] = None
 
     def search_candidates(self, query: str, max_results: int = 10) -> List[SearchCandidate]:
         """
@@ -33,6 +34,7 @@ class DDGSSearchProvider(SearchProvider):
         candidates: List[SearchCandidate] = []
         seen_domains = set()
         raw_results = []
+        self.last_error = None
 
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -49,8 +51,10 @@ class DDGSSearchProvider(SearchProvider):
                             raw_results = list(res)
 
                     if raw_results:
+                        self.last_error = None
                         break
             except Exception as e:
+                self.last_error = str(e)
                 logger.warning(f"[DDGSSearchProvider] Tentativa {attempt}/{self.max_retries} falhou para query '{query}': {e}")
                 if attempt < self.max_retries:
                     time.sleep(self.delay_seconds * attempt)

@@ -3,8 +3,14 @@ Testes unitários para o DDGSSearchProvider.
 """
 
 from unittest.mock import patch, MagicMock
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+from database.connection import Base
+from database.models import APIUsage
 from providers.search.ddgs_provider import DDGSSearchProvider
 from providers.search.base import SearchCandidate
+from services.search_service import SearchService
 
 
 def test_ddgs_provider_search_candidates_mocked():
@@ -58,3 +64,31 @@ def test_ddgs_provider_failure_resilience():
 
         # Não deve quebrar com exceção unhandled, apenas retornar lista vazia
         assert candidates == []
+        assert provider.last_error == "Rate limit temporário"
+
+
+def test_search_does_not_count_provider_failure_as_success():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+
+    class FailedProvider:
+        last_error = None
+
+        def search_candidates(self, query, max_results=10):
+            self.last_error = "Falha externa"
+            return []
+
+    service = SearchService(session, search_provider=FailedProvider())
+    result = service.execute_prospecting_search(
+        product="componente industrial",
+        location="Brasil",
+        max_queries=1,
+        force_refresh=True,
+    )
+
+    usage = session.scalar(select(APIUsage))
+    assert result["web_search_calls"] == 0
+    assert usage.success is False
+    assert usage.error_message == "Falha externa"
+    session.close()

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Building2, ExternalLink, Mail, MessageCircle, Phone, RefreshCw, Search, Trash2, UserRound } from "lucide-react"
+import { ArrowUpRight, Building2, Download, ExternalLink, Mail, MessageCircle, Phone, RefreshCw, Search, Trash2, UserRound } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
@@ -49,6 +49,11 @@ export function CompaniesPage() {
     const text = `${company.name} ${company.legal_name || ""} ${company.cnpj || ""} ${company.city || ""} ${company.state || ""}`.toLowerCase()
     return text.includes(query.toLowerCase()) && (type === "TODOS" || company.company_type === type)
   }), [companies, query, type])
+  const exportParams = new URLSearchParams()
+  if (searchId) exportParams.set("search_id", searchId)
+  if (type !== "TODOS") exportParams.set("company_type", type)
+  if (query.trim()) exportParams.set("q", query.trim())
+  const exportUrl = `/api/companies-export.xlsx${exportParams.size ? `?${exportParams}` : ""}`
 
   function selectCompany(id: number) {
     const url = new URL(window.location.href)
@@ -90,9 +95,10 @@ export function CompaniesPage() {
     <main className="page-frame">
       <div className="mb-7 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div><h2 className="text-3xl font-semibold tracking-[-.035em] sm:text-[40px]">{searchId ? `Resultados da busca #${searchId}` : "Base de empresas"}</h2><p className="mt-2 text-sm text-muted">{companies.length} registros no escopo atual. Selecione uma linha para abrir todos os dados.</p></div>
-        <div className="grid gap-3 sm:grid-cols-[minmax(240px,1fr)_190px] lg:w-[520px]">
+        <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_180px_auto] lg:w-[700px]">
           <div className="relative"><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, CNPJ, cidade..." aria-label="Filtrar empresas" /></div>
           <Select value={type} onValueChange={setType}><SelectTrigger aria-label="Filtrar por tipo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="TODOS">Todos os tipos</SelectItem><SelectItem value="FABRICANTE">Fabricantes</SelectItem><SelectItem value="CANDIDATO_CNAE">Candidatos CNAE</SelectItem><SelectItem value="DISTRIBUIDOR">Distribuidores</SelectItem><SelectItem value="DESCONHECIDO">Não classificados</SelectItem></SelectContent></Select>
+          <Button asChild variant="outline"><a href={exportUrl}><Download className="size-4" />Exportar Excel</a></Button>
         </div>
       </div>
 

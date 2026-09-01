@@ -47,3 +47,4 @@ Configure `DATABASE_URL` para usar PostgreSQL/Supabase. Sem essa variável, o si
 - Lista de empresas filtrável por execução.
 - Perfil completo com origem dos contatos e ação de WhatsApp.
 - Histórico de pesquisas persistidas.
+- Exportação Excel organizada em abas de empresas, contatos, decisores, QSA e evidências.

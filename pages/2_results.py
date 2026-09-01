@@ -16,6 +16,7 @@ from database.repositories.decision_makers import DecisionMakerRepository
 from database.repositories.partners import PartnerRepository
 from database.repositories.department_contacts import DepartmentContactRepository
 from services.enrichment_service import EnrichmentService
+from services.export_service import ExportService
 from services.department_contact_service import DepartmentContactService
 from services.scoring_service import ScoringService
 from services.decision_maker_service import DECISION_MAKER_MIN_SCORE
@@ -148,6 +149,19 @@ else:
         })
 
     df = pd.DataFrame(data)
+    export_scope = format_scope(selected_scope)
+    export_name = f"cxpack_empresas_busca_{selected_scope}.xlsx" if selected_scope else "cxpack_empresas_base_completa.xlsx"
+    xlsx_bytes = ExportService(session).export_to_xlsx(companies=companies, scope_label=export_scope)
+    export_col, export_space = st.columns([1, 2])
+    with export_col:
+        st.download_button(
+            "Exportar lista organizada em Excel",
+            data=xlsx_bytes,
+            file_name=export_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True,
+        )
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     st.divider()

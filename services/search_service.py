@@ -170,6 +170,17 @@ class SearchService:
             for q_text in queries_to_run:
                 try:
                     cands = self.search_provider.search_candidates(query=q_text, max_results=10)
+                    provider_error = getattr(self.search_provider, "last_error", None)
+                    if provider_error:
+                        self.usage_repo.log_usage(
+                            operation="ddgs_web_search",
+                            user_or_operator=operator,
+                            search_id=search_record.id,
+                            request_count=1,
+                            success=False,
+                            error_message=provider_error,
+                        )
+                        continue
                     all_candidates.extend(cands)
                     successful_web_calls += 1
 

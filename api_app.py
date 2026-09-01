@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -11,10 +12,10 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from core.exceptions import QuotaExceededError
@@ -25,6 +26,7 @@ from database.repositories.searches import SearchRepository
 from services.contact_service import ContactService
 from services.decision_maker_service import DecisionMakerService
 from services.enrichment_service import EnrichmentService
+from services.export_service import ExportService
 from services.quota_service import QuotaService
 from services.search_service import SearchService
 
@@ -216,6 +218,7 @@ def list_companies(
     search_id: int | None = None,
     min_score: int = Query(default=0, ge=0, le=100),
     company_type: str | None = None,
+    q: str | None = Query(default=None, max_length=100),
     session: Session = Depends(get_db),
 ):
     stmt = select(Company)
@@ -224,8 +227,45 @@ def list_companies(
     stmt = stmt.where(Company.score >= min_score)
     if company_type and company_type != "TODOS":
         stmt = stmt.where(Company.company_type == company_type)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(or_(
+            Company.name.ilike(pattern), Company.legal_name.ilike(pattern),
+            Company.cnpj.ilike(pattern), Company.city.ilike(pattern), Company.state.ilike(pattern),
+        ))
     items = session.scalars(stmt.order_by(Company.score.desc(), Company.updated_at.desc())).unique().all()
     return [company_summary(item) for item in items]
+
+
+@app.get("/api/companies-export.xlsx")
+def export_companies(
+    search_id: int | None = None,
+    min_score: int = Query(default=0, ge=0, le=100),
+    company_type: str | None = None,
+    q: str | None = Query(default=None, max_length=100),
+    session: Session = Depends(get_db),
+):
+    stmt = select(Company)
+    if search_id:
+        stmt = stmt.join(SearchResult, SearchResult.company_id == Company.id).where(SearchResult.search_id == search_id)
+    stmt = stmt.where(Company.score >= min_score)
+    if company_type and company_type != "TODOS":
+        stmt = stmt.where(Company.company_type == company_type)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(or_(
+            Company.name.ilike(pattern), Company.legal_name.ilike(pattern),
+            Company.cnpj.ilike(pattern), Company.city.ilike(pattern), Company.state.ilike(pattern),
+        ))
+    companies = session.scalars(stmt.order_by(Company.score.desc(), Company.updated_at.desc())).unique().all()
+    scope = f"Busca #{search_id}" if search_id else "Base completa"
+    content = ExportService(session).export_to_xlsx(companies=companies, scope_label=scope)
+    filename = f"cxpack_empresas_busca_{search_id}.xlsx" if search_id else "cxpack_empresas.xlsx"
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/companies/{company_id}")

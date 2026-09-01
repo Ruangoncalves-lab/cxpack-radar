@@ -1,12 +1,12 @@
-"""
-Testes unitários para o serviço de exportação (ExportService).
-"""
+"""Testes da exportação organizada para Excel e CSV."""
 
+import io
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from database.connection import Base
-from database.models import Company
+from database.models import Company, CompanyPartner, Contact, DecisionMaker, Evidence
 from services.export_service import ExportService
 
 
@@ -31,6 +31,13 @@ def test_export_csv_and_xlsx(db_session):
     )
     db_session.add(comp)
     db_session.commit()
+    db_session.add_all([
+        Contact(company_id=comp.id, contact_type="TELEFONE", value="+55 11 3333-4444", is_verified=True, source_url="https://fonte.example/contato"),
+        DecisionMaker(company_id=comp.id, name="Ana Compras", role="Gerente de Compras", email="ana@example.com", confidence=0.9, source_url="https://fonte.example/equipe"),
+        CompanyPartner(company_id=comp.id, name="João Sócio", qualification="SOCIO_ADMINISTRADOR"),
+        Evidence(company_id=comp.id, field_name="qualified_search_match", value="frasco PEAD", confidence=0.85, source_url="https://fonte.example/produto"),
+    ])
+    db_session.commit()
 
     exporter = ExportService(db_session)
 
@@ -50,3 +57,13 @@ def test_export_csv_and_xlsx(db_session):
     xlsx_bytes = exporter.export_to_xlsx()
     assert isinstance(xlsx_bytes, bytes)
     assert len(xlsx_bytes) > 0
+
+    workbook = load_workbook(io.BytesIO(xlsx_bytes))
+    assert workbook.sheetnames == ["Empresas", "Contatos", "Decisores", "QSA", "Evidências"]
+    assert workbook["Empresas"].freeze_panes == "A2"
+    assert workbook["Empresas"].max_row == 2
+    assert workbook["Contatos"].max_row == 2
+    assert workbook["Decisores"].max_row == 2
+    assert workbook["QSA"].max_row == 2
+    assert workbook["Evidências"].max_row == 2
+    assert len(workbook["Empresas"].tables) == 1
